@@ -6,10 +6,10 @@ try:
     env_path = os.path.join(os.path.dirname(__file__), '.env')
     load_dotenv(env_path)
     print(f"[.env] Loaded from {env_path}")
-    if os.environ.get("GEMINI_API_KEY"):
-        print("[.env] GEMINI_API_KEY found ✓")
+    if os.environ.get("GROQ_API_KEY"):
+        print("[.env] GROQ_API_KEY found ✓")
     else:
-        print("[.env] WARNING: GEMINI_API_KEY not set — AI chat will not work")
+        print("[.env] WARNING: GROQ_API_KEY not set — AI chat will not work")
 except ImportError:
     print("[.env] python-dotenv not installed.")
 
