@@ -7,7 +7,7 @@ A full-stack fitness management app with AI coaching, real-time social features,
 - 🔐 User authentication with JWT
 - 🏋️ Workout logging — create and track exercises with sets, reps, and weight
 - 🔥 Streak calendar — daily activity heatmap to maintain momentum
-- 🤖 AI Chat (Gemini) — personalized coaching that knows your profile, goals, and history
+- 🤖 AI Chat (GROQ) — personalized coaching that knows your profile, goals, and history
 - 🍎 Calorie calculator — estimate intake based on height, weight, age, and goals
 - 📊 Progress analytics — charts of strength gains and workout frequency
 - 👥 Social — follow friends, activity feed, and real-time chat via Socket.IO
