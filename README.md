@@ -21,7 +21,7 @@ A full-stack fitness management app with AI coaching, real-time social features,
 | Frontend | React 19, Vite, React Router, Recharts, Socket.IO Client |
 | Backend | Python, Flask, Flask-SocketIO, Flask-JWT-Extended |
 | Database | MongoDB Atlas |
-| AI | Google Gemini API (free) |
+| AI | GROQ API (free) |
 | DevOps | Docker Compose |
 
 ## Project Structure
