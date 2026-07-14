@@ -32,7 +32,7 @@ fitness-tracker/
 ├── backend/           # Flask API + Socket.IO server
 │   └── app/
 │       ├── auth/      # Registration, login, JWT
-│       ├── ai/        # Gemini AI chat
+│       ├── ai/        # GROQ AI chat
 │       ├── analytics/ # Progress dashboard
 │       ├── calorie/   # Calorie calculations
 │       └── social/    # Friends, feed, chat
@@ -45,7 +45,7 @@ fitness-tracker/
 - Node.js 18+
 - Python 3.10+
 - MongoDB Atlas account (free tier works)
-- Google Gemini API key (free — see below)
+- GROQ API key (free — see below)
 
 ### Option A — Docker (easiest)
 
@@ -66,7 +66,7 @@ docker compose up
 cd backend
 pip install -r requirements.txt
 cp .env.example .env
-# Edit .env — add your MONGO_URI and GEMINI_API_KEY
+# Edit .env — add your MONGO_URI and GROQ_API_KEY
 python app.py
 # Runs on http://localhost:5000
 ```
@@ -81,11 +81,11 @@ npm run dev
 # Runs on http://localhost:3000
 ```
 
-### Getting a free Gemini API key (2 min)
+### Getting a free GROQ API key (2 min)
 
-1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+1. Go to [console.groq.com/keys](https://console.groq.com/keys)
 2. Sign in with any Google account → **Create API Key**
-3. Paste the key into `backend/.env` as `GEMINI_API_KEY=...`
+3. Paste the key into `backend/.env` as `GROQ_API_KEY=...`
 
 ## Deployment
 
