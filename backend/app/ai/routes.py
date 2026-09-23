@@ -7,7 +7,7 @@ import os
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
  
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL   = "llama-3.1-8b-instant"   # free, fast, good quality
+GROQ_MODEL = "openai/gpt-oss-20b"   # was "llama-3.1-8b-instant"
  
  
 def get_api_key():
