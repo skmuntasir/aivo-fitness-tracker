@@ -83,7 +83,8 @@
 .comm-ghost-btn { background: transparent; border: none; cursor: pointer; font-size: 0.9rem; padding: 5px; border-radius: 8px; transition: background 0.15s; }
 .comm-ghost-btn:hover { background: rgba(255,255,255,0.08); }
 .comm-post-text { color: #c4cfe8; font-size: 0.92rem; line-height: 1.7; margin: 0; }
-.comm-post-img { max-height: 320px; width: 100%; object-fit: cover; border-radius: 14px; }
+.comm-post-img { max-height: 320px; width: 100%; object-fit: cover; border-radius: 14px; min-height: 180px; background: rgba(255,255,255,0.04); opacity: 0; transition: opacity 0.25s ease; }
+.comm-post-img.loaded { min-height: 0; opacity: 1; }
 .comm-post-footer { display: flex; gap: 8px; }
 .comm-react-btn { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 7px 14px; color: #a5b4fc; font-size: 0.84rem; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.15s; }
 .comm-react-btn:hover { background: rgba(129,140,248,0.12); border-color: rgba(129,140,248,0.25); }
@@ -148,3 +149,10 @@
 
 /* Kill grid pattern completely */
 .pg-bg, .pg-bg-grid, .pg-bg-orb, .pg-orb1, .pg-orb2, .pg-orb3 { display: none !important; }
+
+/* Report-a-post panel */
+.comm-report { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); font-size: 14px; }
+.comm-report select, .comm-report input { padding: 8px 10px; border-radius: 10px; font-size: 14px; }
+.comm-report input { flex: 1; min-width: 160px; }
+.comm-report-actions { display: flex; gap: 6px; align-items: center; }
+.comm-report-err { color: #fca5a5; width: 100%; }

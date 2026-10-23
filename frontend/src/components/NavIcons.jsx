@@ -2,41 +2,16 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import { useChat } from './ChatContext';
+import Icon from './Icon';
 import './NavIcons.css';
 
+// Unread count + friend requests now come from ChatContext (kept live over the socket),
+// instead of this component polling the server every 30s.
 const NavIcons = () => {
-  const [requests, setRequests] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const navigate = useNavigate();
   const ref = useRef(null);
-  const { openChat } = useChat();
-
-  const loadRequests = async () => {
-    try {
-      const response = await API.get('/friends/requests');
-      const allRequests = response.data.requests || [];
-      setRequests(allRequests.filter(req => req.sender != null));
-    } catch { console.error('Failed to load requests'); }
-  };
-
-  const loadUnreadMessages = async () => {
-    try {
-      const response = await API.get('/messages/unread-count');
-      setUnreadCount(response.data.unread_count || 0);
-    } catch {
-      // silently fail — badge just won't show if endpoint isn't up yet
-      setUnreadCount(0);
-    }
-  };
-
-  useEffect(() => {
-    loadRequests();
-    loadUnreadMessages();
-    // Poll for new messages every 30s
-    const interval = setInterval(loadUnreadMessages, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const { openChat, totalUnread, requests, refreshRequests, refreshFriends } = useChat();
 
   useEffect(() => {
     const onBodyClick = (event) => {
@@ -47,38 +22,26 @@ const NavIcons = () => {
   }, []);
 
   const handleAccept = async (requestId) => {
-    try { await API.put(`/friends/accept/${requestId}`); await loadRequests(); } catch { }
+    try { await API.put(`/friends/accept/${requestId}`); await Promise.all([refreshRequests(), refreshFriends()]); } catch { /* ignore */ }
   };
   const handleReject = async (requestId) => {
-    try { await API.put(`/friends/reject/${requestId}`); await loadRequests(); } catch { }
+    try { await API.put(`/friends/reject/${requestId}`); await refreshRequests(); } catch { /* ignore */ }
   };
-
-  const handleOpenChat = () => {
-    setUnreadCount(0); // optimistically clear badge
-    openChat();
-  };
-
-  const badgeCount = requests.length;
 
   return (
     <div className="nav-icons-wrapper" ref={ref}>
-      {/* Friends */}
-      <button className="nav-icon-btn" onClick={() => navigate('/friends')} aria-label="Friends">
-        👥
-      </button>
+      <button className="nav-icon-btn" onClick={() => navigate('/friends')} aria-label="Friends"><Icon name="users" size={18} /></button>
 
-      {/* Messages with unread badge */}
-      <button className="nav-icon-btn chat-toggle-btn" onClick={handleOpenChat} aria-label="Chat">
-        💬
-        {unreadCount > 0 && (
-          <span className="notification-badge msg-badge">{unreadCount > 9 ? '9+' : unreadCount}</span>
+      <button className="nav-icon-btn chat-toggle-btn" onClick={() => openChat()} aria-label="Chat">
+        <Icon name="message" size={18} />
+        {totalUnread > 0 && (
+          <span className="notification-badge msg-badge">{totalUnread > 9 ? '9+' : totalUnread}</span>
         )}
       </button>
 
-      {/* Notifications */}
-      <button className="nav-icon-btn notification-btn" onClick={() => setDropdownOpen(prev => !prev)} aria-label="Notifications">
-        🔔
-        {badgeCount > 0 && <span className="notification-badge">{badgeCount}</span>}
+      <button className="nav-icon-btn notification-btn" onClick={() => setDropdownOpen((prev) => !prev)} aria-label="Notifications">
+        <Icon name="bell" size={18} />
+        {requests.length > 0 && <span className="notification-badge">{requests.length}</span>}
       </button>
 
       {dropdownOpen && (
@@ -87,7 +50,7 @@ const NavIcons = () => {
           {requests.length === 0 ? (
             <div className="notification-empty">No new requests</div>
           ) : (
-            requests.map(req => (
+            requests.map((req) => (
               <div className="notification-card" key={req.requestId}>
                 <div>
                   <strong>{req.sender.full_name}</strong>

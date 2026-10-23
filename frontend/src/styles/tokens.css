@@ -1,0 +1,29 @@
+/* Shared design tokens — one accent colour for the whole member app.
+   Change these and every page that uses them (theme.css, chat, bottom nav, dashboard) follows. */
+:root {
+  --accent: #7c3aed;
+  --accent-strong: #6d28d9;
+  --accent-light: #a78bfa;
+  --accent-text: #c4b5fd;
+  --accent-soft: rgba(124, 58, 237, 0.14);
+  --accent-ring: rgba(139, 92, 246, 0.2);
+  --accent-glow: rgba(109, 40, 217, 0.38);
+  --ok: #22c55e;
+  --danger: #ef4444;
+  --muted: #8a9bc0;
+  --surface-1: rgba(255, 255, 255, 0.04);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --line: rgba(255, 255, 255, 0.09);
+}
+
+/* Skeleton shimmer used by loading placeholders */
+.sk { position: relative; overflow: hidden; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }
+.sk::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
+  animation: skShimmer 1.3s infinite;
+}
+@keyframes skShimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .sk::after { animation: none; }
+}

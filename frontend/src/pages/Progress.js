@@ -39,7 +39,6 @@ const EMPTY_STATS = {
 
 const EMPTY_DAILY = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => ({
   day, calories: 0, prevCalories: 0, duration: 0, sessions: 0,
-  intensity: 0, heartRate: 0,
 }));
 
 const EMPTY_WEIGHT = [
@@ -326,7 +325,7 @@ const Skeleton = ({ h = 24, w = '100%', radius = 8 }) => (
 const Progress = () => {
   const [stats, setStats]         = useState(EMPTY_STATS);
   const [dailyData, setDailyData] = useState(EMPTY_DAILY);
-  const [weightData, setWeightData] = useState(EMPTY_WEIGHT);
+  const [weightData, setWeightData] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -380,14 +379,10 @@ const Progress = () => {
             ...d,
             prevCalories: prevWeek[i]?.calories || 0,
             prevDuration: prevWeek[i]?.duration || 0,
-            intensity: d.sessions > 0 ? Math.min(60 + d.duration, 95) : 0,
-            heartRate: d.sessions > 0 ? 125 + Math.round(d.duration * 0.3) : 0,
           }));
           setDailyData(combined);
 
-          if (s.weight_history && s.weight_history.length > 0) {
-            setWeightData(s.weight_history);
-          }
+          setWeightData(s.weight_history || []);   // real entries only (backend no longer fabricates a trend)
 
           // Update chat greeting with real name
           setChatMessages([{
@@ -465,7 +460,7 @@ const Progress = () => {
       if (serverMsg) {
         friendlyMsg = '⚠️ ' + serverMsg;
       } else if (statusCode === 503) {
-        friendlyMsg = '⚠️ AI not configured. Please set GEMINI_API_KEY in backend/.env and restart Flask.';
+        friendlyMsg = '⚠️ AI not configured. Please set GROQ_API_KEY in backend/.env and restart Flask.';
       } else if (statusCode === 504) {
         friendlyMsg = '⏱ AI request timed out. Please try again.';
       } else if (!statusCode) {
@@ -804,18 +799,24 @@ const Progress = () => {
                     <div className="pgc-sub">kg from your profile history</div>
                   </div>
                 </div>
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={weightData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false}/>
-                    <XAxis dataKey="week" stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={12}/>
-                    <YAxis stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={11}/>
-                    <Tooltip content={<CustomTooltip/>}/>
-                    <Line type="monotone" dataKey="weight" name="Weight (kg)" stroke="#5eead4" strokeWidth={2.5} dot={{ fill:'#5eead4', r:4 }} activeDot={{ r:7 }}/>
-                    {stats.targetWeight > 0 && (
-                      <Line type="monotone" dataKey={() => stats.targetWeight} name="Target" stroke="#f87171" strokeWidth={1.5} strokeDasharray="6 3" dot={false}/>
-                    )}
-                  </LineChart>
-                </ResponsiveContainer>
+{weightData.length < 2 ? (
+                  <p className="pg-fatigue-tip" style={{ padding: '60px 12px', textAlign: 'center' }}>
+                    Update your weight on the Profile page to start building your weight trend.
+                  </p>
+                ) : (
+                                <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={weightData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
+                      <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false}/>
+                      <XAxis dataKey="week" stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={12}/>
+                      <YAxis stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={11}/>
+                      <Tooltip content={<CustomTooltip/>}/>
+                      <Line type="monotone" dataKey="weight" name="Weight (kg)" stroke="#5eead4" strokeWidth={2.5} dot={{ fill:'#5eead4', r:4 }} activeDot={{ r:7 }}/>
+                      {stats.targetWeight > 0 && (
+                        <Line type="monotone" dataKey={() => stats.targetWeight} name="Target" stroke="#f87171" strokeWidth={1.5} strokeDasharray="6 3" dot={false}/>
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
               </div>
 
               {/* Activity table */}
@@ -986,8 +987,8 @@ const Progress = () => {
                 <div className="pg-fatigue-metrics">
                   {[
                     { label:'Consecutive Days', val:`${stats.consecutiveDays} days`, warn:stats.consecutiveDays>=4, icon:'📆' },
-                    { label:'Avg Sleep',         val:`${stats.avgSleep}h / night`,    warn:stats.avgSleep<7,         icon:'😴' },
-                    { label:'Hydration',          val:`${stats.hydration}%`,          warn:stats.hydration<75,       icon:'💧' },
+                    { label:'Avg Sleep (est.)',   val:`${stats.avgSleep}h / night`,    warn:stats.avgSleep<7,         icon:'😴' },
+                    { label:'Hydration (est.)',    val:`${stats.hydration}%`,          warn:stats.hydration<75,       icon:'💧' },
                     { label:'Recovery Score',     val:fatigue.level==='optimal'?'88/100':fatigue.level==='warning'?'61/100':'34/100', warn:fatigue.level!=='optimal', icon:'❤️‍🩹' },
                   ].map(m => (
                     <div key={m.label} className={`pg-fat-metric ${m.warn?'warn':''}`}>

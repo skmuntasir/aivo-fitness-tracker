@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import './Register.css';
 import API from '../services/api';
+import { useFeedback } from '../components/Feedback';
 
 // Compress and convert image file to base64 (max 400px, quality 0.7)
 const compressImage = (file) => {
@@ -26,6 +27,7 @@ const compressImage = (file) => {
 };
 
 const Register = () => {
+  const { toast } = useFeedback();
   const picInputRef = useRef(null);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -156,6 +158,7 @@ const Register = () => {
     }
 
     setIsLoading(true);
+    let redirecting = false;
 
     try {
       // Prepare data for API call
@@ -184,16 +187,17 @@ const Register = () => {
         localStorage.setItem('user', JSON.stringify(response.data.user));
         
         // Show success message
-        alert('Registration successful! Welcome to Aivo!');
+        toast('Registration successful! Welcome to Aivo!', 'success');
         
-        // Redirect to home page
-        window.location.href = '/home';
+        // Redirect to home page (short delay so the message is seen)
+        setTimeout(() => { window.location.href = '/home'; }, 1300);
+        redirecting = true; // keep the form busy until the redirect
       } else {
         // Handle API errors
         if (response.data.errors) {
           setErrors(response.data.errors);
         } else {
-          alert(response.data.message || 'Registration failed. Please try again.');
+          toast(response.data.message || 'Registration failed. Please try again.', 'error');
         }
       }
 
@@ -204,13 +208,13 @@ const Register = () => {
         if (error.response.data.errors) {
           setErrors(error.response.data.errors);
         } else {
-          alert(error.response.data.message || 'Registration failed. Please try again.');
+          toast(error.response.data.message || 'Registration failed. Please try again.', 'error');
         }
       } else {
-        alert('Network error. Please check your connection and try again.');
+        toast('Network error. Please check your connection and try again.', 'error');
       }
     } finally {
-      setIsLoading(false);
+      if (!redirecting) setIsLoading(false);
     }
   };
 

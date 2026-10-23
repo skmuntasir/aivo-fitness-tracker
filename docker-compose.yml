@@ -1,31 +1,23 @@
-version: '3.8'
 services:
   mongodb:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_DATABASE: fitness_db
-    volumes:
-      - mongodb_data:/data/db
-  
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: [mongodb_data:/data/db]
+
   backend:
     build: ./backend
-    ports:
-      - "5000:5000"
-    volumes:
-      - ./backend:/app
+    ports: ["5000:5000"]
+    env_file: ./backend/.env        # copy backend/.env.example -> backend/.env first
     environment:
-      MONGO_URI: "mongodb://mongodb:27017/fitness_db"
-    depends_on:
-      - mongodb
-  
+      MONGO_URI: "mongodb://mongodb:27017/fitness_db"   # local Mongo; remove to use Atlas from .env
+    depends_on: [mongodb]
+
   frontend:
     build: ./frontend
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/usr/src/app
+    ports: ["3000:3000"]
+    environment:
+      VITE_BACKEND_URL: "http://localhost:5000"
+    depends_on: [backend]
 
 volumes:
   mongodb_data:

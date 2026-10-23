@@ -132,6 +132,28 @@
   user-select: none;
 }
 
+/* Eye button sits inside the password field (was only styled in Register.css, which is lazy-loaded) */
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: auto;
+  height: auto;
+  margin: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 6px;
+  color: rgba(167,139,250,0.5);
+  transition: color 0.15s;
+}
+.password-toggle:hover { color: #c4b5fd; background: none; box-shadow: none; transform: translateY(-50%); }
+
 /* ── Options row ── */
 .form-options {
   display: flex;
@@ -242,3 +264,7 @@
 @media (max-width: 520px) {
   .login-card { padding: 28px 22px; border-radius: 22px; }
 }
+
+.input-icon { display: inline-flex; align-items: center; }
+.password-toggle { display: inline-flex; align-items: center; justify-content: center; }
+.login-button .login-busy { font-size: 0.95rem; }

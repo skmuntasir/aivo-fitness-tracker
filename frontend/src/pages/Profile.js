@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './Profile.css';
 import API from '../services/api';
 import BackButton from '../components/BackButton';
+import { useFeedback } from '../components/Feedback';
 
 
 // Compress image to base64 (max 400px, quality 0.75)
@@ -36,6 +37,7 @@ const cmToFeetInches = (cm) => {
 
 const Profile = () => {
   const navigate = useNavigate();
+  const { toast } = useFeedback();
   const [userData, setUserData] = useState(null);
   const [healthMetrics, setHealthMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -118,7 +120,7 @@ const Profile = () => {
       await API.put('/auth/profile', { profile_picture: base64 });
     } catch (err) {
       console.error('Picture upload failed', err);
-      alert('Failed to upload photo. Please try a smaller image.');
+      toast('Failed to upload photo. Please try a smaller image.', 'error');
     } finally {
       setPicUploading(false);
     }
@@ -154,22 +156,23 @@ const Profile = () => {
       if (res.data.success) {
         setShowEditModal(false);
         await fetchUserData();
-      } else { alert(res.data.message || 'Update failed.'); }
-    } catch (err) { alert(err.response?.data?.message || 'Update failed.'); }
+        toast('Profile updated.', 'success');
+      } else { toast(res.data.message || 'Update failed.', 'error'); }
+    } catch (err) { toast(err.response?.data?.message || 'Update failed.', 'error'); }
     finally { setEditLoading(false); }
   };
 
   // ── Delete Account ────────────────────────────────────────────────────────
   const handleDeleteAccount = async () => {
-    if (deleteInput !== 'DELETE') { alert('Please type DELETE to confirm.'); return; }
+    if (deleteInput !== 'DELETE') { toast('Please type DELETE to confirm.', 'error'); return; }
     setDeleteLoading(true);
     try {
       const res = await API.delete('/auth/account');
       if (res.data.success) {
         localStorage.removeItem('token'); localStorage.removeItem('user');
         window.location.href = '/login';
-      } else { alert(res.data.message || 'Deletion failed.'); }
-    } catch (err) { alert(err.response?.data?.message || 'Deletion failed.'); }
+      } else { toast(res.data.message || 'Deletion failed.', 'error'); }
+    } catch (err) { toast(err.response?.data?.message || 'Deletion failed.', 'error'); }
     finally { setDeleteLoading(false); }
   };
 

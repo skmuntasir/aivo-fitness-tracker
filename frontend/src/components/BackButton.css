@@ -48,3 +48,5 @@
 .return-home-btn-floating:active {
   transform: translateY(0);
 }
+
+.back-btn-floating .ui-icon, .return-home-btn-floating .ui-icon { margin-top: -1px; }

@@ -118,3 +118,10 @@
 
 /* Kill grid pattern completely */
 .pg-bg, .pg-bg-grid, .pg-bg-orb, .pg-orb1, .pg-orb2, .pg-orb3 { display: none !important; }
+
+/* icons, presence, empty states */
+.friends-section-title { display: flex; align-items: center; gap: 8px; }
+.friends-search-icon { display: inline-flex; align-items: center; }
+.friends-btn-primary.small { display: inline-flex; align-items: center; gap: 6px; }
+.friend-online-text { color: #86efac !important; font-weight: 600; }
+.friend-card .ui-presence { border-color: #12162c; }

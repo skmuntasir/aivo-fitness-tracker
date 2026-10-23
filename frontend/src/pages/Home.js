@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
 import main_logo from './images/aivo_logo.png';
@@ -7,7 +7,29 @@ import CalorieCalculator from '../components/CalorieCalculator';
 import WorkoutTimer from '../components/WorkoutTimer';
 import StreakCalendar from '../components/StreakCalendar';
 import NavIcons from '../components/NavIcons';
+import AnnouncementBanner from '../components/AnnouncementBanner';
+import Icon from '../components/Icon';
+import { prefetchFeed } from '../utils/feedCache';
+import { localDateKey, userTimeZone } from '../utils/time';
 
+
+const WEEKLY_GOAL = 5;                       // workouts per week shown on the dashboard ring
+const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+};
+
+// Monday-first list of the 7 local date keys of the current week
+const currentWeek = () => {
+  const now = new Date();
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+    return localDateKey(d);
+  });
+};
 
 const Home = () => {
   const navigate = useNavigate();
@@ -15,63 +37,71 @@ const Home = () => {
   const [showCalorieCalculator, setShowCalorieCalculator] = useState(false);
   const [showWorkoutTimer, setShowWorkoutTimer] = useState(false);
   const [streakKey, setStreakKey] = useState(0);
+  const timerRef = useRef(null);
+  // closing the timer while it runs asks: save / reset / keep going (handled inside WorkoutTimer)
+  const closeTimer = () => (timerRef.current ? timerRef.current.requestClose() : setShowWorkoutTimer(false));
 
   const token = localStorage.getItem('token');
   const [userProfile, setUserProfile] = useState(() => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   });
   const [liveStats, setLiveStats] = useState({ streak: null, points: null, totalWorkouts: null });
+  const [dayTotals, setDayTotals] = useState(null);   // { 'YYYY-MM-DD': seconds } — null while loading
 
   const firstName = userProfile?.full_name?.split(' ')[0] || 'Athlete';
 
-  // Fetch fresh stats from backend
+  // Lightweight stats endpoint (was /analytics/progress-summary, which loads every workout
+  // just to read three numbers and blocked the whole Home page).
   const fetchLiveStats = useCallback(async () => {
     try {
-      // Use analytics/progress-summary which has streak, points, total_workouts
-      const res = await API.get('/analytics/progress-summary');
+      const res = await API.get('/workouts/stats');
       if (res.data.success) {
-        const s = res.data.summary;
-        setLiveStats({
-          streak: s.streak ?? 0,
-          points: s.points ?? 0,
-          totalWorkouts: s.total_workouts ?? 0,
-        });
-        // Update localStorage cache
+        const d = res.data;
+        setLiveStats({ streak: d.streak ?? 0, points: d.points ?? 0, totalWorkouts: d.total_workouts ?? 0 });
         try {
           const stored = JSON.parse(localStorage.getItem('user') || '{}');
-          stored.streak = s.streak ?? 0;
-          stored.points = s.points ?? 0;
-          stored.totalWorkouts = s.total_workouts ?? 0;
+          stored.streak = d.streak ?? 0;
+          stored.points = d.points ?? 0;
+          stored.totalWorkouts = d.total_workouts ?? 0;
           localStorage.setItem('user', JSON.stringify(stored));
         } catch {}
       }
-    } catch (e) {
-      // Fallback to profile endpoint
-      try {
-        const profileRes = await API.get('/auth/profile');
-        if (profileRes.data.success) {
-          const u = profileRes.data.user;
-          setLiveStats({
-            streak: u.streak ?? 0,
-            points: u.points ?? 0,
-            totalWorkouts: null,
-          });
-        }
-      } catch {
-        // Use cached localStorage values
-        const cached = JSON.parse(localStorage.getItem('user') || '{}');
-        setLiveStats({
-          streak: cached?.streak ?? null,
-          points: cached?.points ?? null,
-          totalWorkouts: cached?.totalWorkouts ?? null,
-        });
-      }
+    } catch {
+      const cached = JSON.parse(localStorage.getItem('user') || '{}');
+      setLiveStats({ streak: cached?.streak ?? null, points: cached?.points ?? null, totalWorkouts: cached?.totalWorkouts ?? null });
     }
-  }, []); // eslint-disable-line
+  }, []);
 
   useEffect(() => {
     fetchLiveStats();
   }, []); // eslint-disable-line
+
+  // Week strip + "today" numbers for the dashboard card (refetched after a workout is logged)
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await API.get('/workouts/daily-summary', { params: { year: new Date().getFullYear(), tz: userTimeZone } });
+        if (cancelled || !res.data.success) return;
+        const m = {};
+        (res.data.streak_data || []).forEach((e) => { m[e.date] = e.total_duration; });
+        setDayTotals(m);
+      } catch { if (!cancelled) setDayTotals((prev) => prev || {}); }
+    })();
+    return () => { cancelled = true; };
+  }, [streakKey]);
+
+  // Warm up Community in the background so it opens instantly: download its code chunk and
+  // fetch + cache the first page of the feed while the user is still on Home.
+  const warmCommunity = useCallback(() => {
+    import('./Community').catch(() => {});
+    prefetchFeed();
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(warmCommunity, 700);
+    return () => clearTimeout(t);
+  }, [warmCommunity]);
 
   const handleWorkoutComplete = () => {
     // Refresh stats after workout is logged
@@ -91,11 +121,24 @@ const Home = () => {
     }
   };
 
+  const week = currentWeek();
+  const todayKey = localDateKey();
+  const activeThisWeek = dayTotals ? week.filter((k) => (dayTotals[k] || 0) > 0).length : 0;
+  const todayMin = dayTotals ? Math.round((dayTotals[todayKey] || 0) / 60) : 0;
+  const ringPct = Math.min(1, activeThisWeek / WEEKLY_GOAL);
+  const RING_R = 54, RING_C = 2 * Math.PI * RING_R;
+
+  const statVal = (live, cached, fmt = (v) => v) => (live !== null ? fmt(live) : (cached != null ? fmt(cached) : null));
   const stats = [
-    { label: 'Workouts', value: liveStats.totalWorkouts !== null ? liveStats.totalWorkouts : (userProfile?.totalWorkouts ?? '—'), icon: '🔥' },
-    { label: 'Streak',   value: liveStats.streak !== null ? `${liveStats.streak}d` : (userProfile?.streak != null ? `${userProfile.streak}d` : '—'), icon: '⚡' },
-    { label: 'Points',   value: liveStats.points !== null ? liveStats.points : (userProfile?.points ?? '—'), icon: '🏆' },
+    { label: 'Workouts', icon: 'activity', value: statVal(liveStats.totalWorkouts, userProfile?.totalWorkouts) },
+    { label: 'Streak',   icon: 'flame',    value: statVal(liveStats.streak, userProfile?.streak, (v) => `${v}d`) },
+    { label: 'Points',   icon: 'zap',      value: statVal(liveStats.points, userProfile?.points) },
   ];
+
+  const subline = !dayTotals ? 'Track, train, and transform — every single day.'
+    : todayMin > 0 ? `You've trained ${todayMin} min today — great work!`
+    : (liveStats.streak ?? userProfile?.streak ?? 0) > 0 ? `Train today to keep your ${liveStats.streak ?? userProfile?.streak}-day streak alive.`
+    : 'Log your first session today and start a streak.';
 
   return (
     <div className="home-container">
@@ -115,25 +158,26 @@ const Home = () => {
           <NavIcons />
           <div className="nav-buttons">
             <button className="nav-button calorie-btn" onClick={() => setShowCalorieCalculator(true)}>
-              <span>🔥</span> Calories
+              <Icon name="calculator" size={16} /> Calories
             </button>
             <button className="nav-button leaderboard-btn" onClick={() => navigate('/leaderboard')}>
-              <span>🏆</span> Leaderboard
+              <Icon name="trophy" size={16} /> Leaderboard
             </button>
             <button className="nav-button profile-btn" onClick={() => navigate('/profile')}>
-              <span>👤</span> Profile
+              <Icon name="user" size={16} /> Profile
             </button>
             <button
               className={`nav-button logout-btn ${isLoggingOut ? 'loading' : ''}`}
               onClick={handleLogout}
               disabled={isLoggingOut}
             >
-              <span>{isLoggingOut ? '⏳' : '🚪'}</span>
+              <Icon name="logout" size={16} />
               {isLoggingOut ? 'Logging out…' : 'Logout'}
             </button>
           </div>
         </div>
       </header>
+      <AnnouncementBanner />
 
       {/* Hero */}
       <main className="main-content">
@@ -144,44 +188,75 @@ const Home = () => {
               Intelligent Fitness. Limitless You.
             </div>
             <h1 className="hero-title">
-              Welcome back,<br />
+              {greeting()},<br />
               <span className="hero-name">{firstName}</span>
             </h1>
-            <p className="hero-subtitle">
-              Your personalized fitness journey powered by AI. Track, train, and transform — every single day.
-            </p>
+            <p className="hero-date"><Icon name="calendar" size={14} /> {new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <p className="hero-subtitle">{subline}</p>
             <div className="hero-actions">
               <button className="cta-primary" onClick={() => setShowWorkoutTimer(true)}>
-                <span className="cta-icon">▶</span>
+                <span className="cta-icon"><Icon name="play" size={16} /></span>
                 Start Workout
               </button>
               <button className="cta-secondary" onClick={() => navigate('/progress')}>
-                <span className="cta-icon">📈</span>
+                <span className="cta-icon"><Icon name="progress" size={16} /></span>
                 View Progress
               </button>
-              <button className="cta-secondary" onClick={() => navigate('/community')}>
-                <span className="cta-icon">🤝</span>
+              <button className="cta-secondary" onClick={() => navigate('/community')}
+                onMouseEnter={warmCommunity} onTouchStart={warmCommunity} onFocus={warmCommunity}>
+                <span className="cta-icon"><Icon name="users" size={16} /></span>
                 Community
               </button>
             </div>
           </div>
+
           <div className="hero-visual">
             <div className="hero-card-glow"></div>
-            <div className="stats-row">
-              {stats.map((s) => (
-                <div key={s.label} className="stat-chip">
-                  <span className="stat-icon">{s.icon}</span>
-                  <span className="stat-value">{s.value}</span>
-                  <span className="stat-label">{s.label}</span>
+            <div className="dash-card">
+              <div className="dash-top">
+                <div className="dash-ring" aria-label={`${activeThisWeek} of ${WEEKLY_GOAL} workouts this week`}>
+                  {dayTotals ? (
+                    <>
+                      <svg viewBox="0 0 128 128" width="132" height="132">
+                        <circle cx="64" cy="64" r={RING_R} className="ring-track" />
+                        <circle cx="64" cy="64" r={RING_R} className="ring-fill" strokeDasharray={RING_C}
+                          strokeDashoffset={RING_C * (1 - ringPct)} transform="rotate(-90 64 64)" />
+                      </svg>
+                      <div className="ring-center">
+                        <b>{activeThisWeek}<small>/{WEEKLY_GOAL}</small></b>
+                        <span>this week</span>
+                      </div>
+                    </>
+                  ) : <div className="sk" style={{ width: 132, height: 132, borderRadius: '50%' }} />}
                 </div>
-              ))}
-            </div>
-            <div className="hero-emoji-wrap">
-              <div className="hero-emoji-ring">
-                <span className="hero-emoji">🏃‍♂️</span>
+                <div className="dash-today">
+                  <span className="dash-eyebrow">Weekly goal</span>
+                  <strong>{activeThisWeek >= WEEKLY_GOAL ? 'Goal reached!' : `${Math.max(0, WEEKLY_GOAL - activeThisWeek)} more to go`}</strong>
+                  <span className="dash-today-line"><Icon name="timer" size={14} /> {dayTotals ? `${todayMin} min today` : '…'}</span>
+                </div>
               </div>
-              <div className="pulse-ring r1"></div>
-              <div className="pulse-ring r2"></div>
+
+              <div className="week-strip">
+                {week.map((k, i) => {
+                  const done = dayTotals && (dayTotals[k] || 0) > 0;
+                  return (
+                    <div key={k} className={`week-day ${done ? 'done' : ''} ${k === todayKey ? 'today' : ''}`}>
+                      <span className="week-dot">{done ? <Icon name="check" size={13} strokeWidth={3} /> : null}</span>
+                      <span className="week-letter">{DAY_LETTERS[i]}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="stats-row">
+                {stats.map((s) => (
+                  <div key={s.label} className="stat-chip">
+                    <span className="stat-icon"><Icon name={s.icon} size={18} /></span>
+                    {s.value === null ? <span className="sk" style={{ width: 34, height: 20 }} /> : <span className="stat-value">{s.value}</span>}
+                    <span className="stat-label">{s.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -204,10 +279,10 @@ const Home = () => {
 
       {/* Workout Timer Modal */}
       {showWorkoutTimer && (
-        <div className="modal-overlay" onClick={() => setShowWorkoutTimer(false)}>
+        <div className="modal-overlay" onClick={closeTimer}>
           <div className="modal-box timer-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowWorkoutTimer(false)}>×</button>
-            <WorkoutTimer token={token} onWorkoutComplete={handleWorkoutComplete} onClose={() => setShowWorkoutTimer(false)} />
+            <button className="modal-close" onClick={closeTimer} aria-label="Close timer">×</button>
+            <WorkoutTimer ref={timerRef} token={token} onWorkoutComplete={handleWorkoutComplete} onClose={() => setShowWorkoutTimer(false)} />
           </div>
         </div>
       )}

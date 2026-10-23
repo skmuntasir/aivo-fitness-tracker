@@ -347,3 +347,23 @@
   flex-shrink: 0;
   margin-left: 4px;
 }
+
+/* — added: optimistic send states, pagination, skeletons — */
+.message-bubble.pending { opacity: 0.6; }
+.message-bubble.failed { outline: 1px solid rgba(248, 113, 113, 0.7); }
+.retry-btn { background: none; border: 0; color: #f87171; cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+.load-older-btn { align-self: center; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); color: inherit; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 0.8rem; margin-bottom: 8px; }
+.chat-skeleton-row { height: 56px; border-radius: 14px; margin: 8px 0; background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.12), rgba(255,255,255,0.05)); background-size: 200% 100%; animation: chatShimmer 1.4s infinite; }
+@keyframes chatShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── presence, typing, empty/skeleton states ── */
+.chat-header-id { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.chat-status { font-size: 0.85rem; }
+.chat-status.is-online { color: #86efac; }
+.friend-preview .ui-presence { border-color: #101529; }
+.chat-empty-btn { margin-top: 6px; padding: 9px 16px; border-radius: 12px; border: 0; cursor: pointer; font-weight: 700; font-size: .85rem; color: #fff; background: linear-gradient(135deg, var(--accent, #7c3aed), var(--accent-strong, #6d28d9)); }
+.chat-msg-skeleton { display: flex; flex-direction: column; gap: 14px; padding: 8px 0; }
+.chat-msg-skeleton .sk { border-radius: 18px; }
+.chat-conn-banner { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 8px 12px; border-radius: 12px; font-size: .78rem; color: #fcd34d; background: rgba(245, 158, 11, .1); border: 1px solid rgba(245, 158, 11, .28); }
+.send-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }

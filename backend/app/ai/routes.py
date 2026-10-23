@@ -3,6 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson import ObjectId
 import requests as http_requests
 import os
+from app.utils import rate_limit, utcnow
+from app.runtime import get_settings
  
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
  
@@ -34,9 +36,10 @@ def get_user_profile(mongo, user_id):
             "points":             user.get("points", 0),
         }
         try:
-            all_workouts = list(mongo.db.workouts.find({"user_id": str(user_id)}))
-            profile["total_workouts"] = len(all_workouts)
-            recent = sorted(all_workouts, key=lambda w: w.get("end_time", ""), reverse=True)[:10]
+            profile["total_workouts"] = mongo.db.workouts.count_documents({"user_id": str(user_id)})
+            recent = list(mongo.db.workouts.find(
+                {"user_id": str(user_id)}, {"duration": 1, "activity_type": 1}
+            ).sort("start_time", -1).limit(10))
             profile["recent_workouts_count"] = len(recent)
             if recent:
                 total_dur = sum(w.get("duration", 0) for w in recent)
@@ -112,7 +115,10 @@ def build_system_prompt(profile):
  
 @ai_bp.route("/chat", methods=["POST"])
 @jwt_required()
+@rate_limit("ai_chat", 20, 60)
 def ai_chat():
+    if not get_settings()['ai_enabled']:
+        return jsonify({"success": False, "message": "The AI coach is temporarily unavailable. Please try again later."}), 200
     api_key = get_api_key()
     if not api_key:
         return jsonify({
@@ -123,6 +129,9 @@ def ai_chat():
     user_id = get_jwt_identity()
     data = request.get_json() or {}
     messages = data.get("messages", [])
+    if not isinstance(messages, list):
+        return jsonify({"success": False, "message": "Invalid messages"}), 400
+    messages = messages[-20:]  # cap history sent to the model
  
     if not messages:
         return jsonify({"success": False, "message": "No messages provided"}), 400
@@ -135,7 +144,7 @@ def ai_chat():
     groq_messages = [{"role": "system", "content": system_prompt}]
     for msg in messages:
         role = msg.get("role", "user")
-        text = msg.get("content", "")
+        text = str(msg.get("content", ""))[:2000]
         groq_messages.append({
             "role": "assistant" if role == "assistant" else "user",
             "content": text
@@ -171,6 +180,10 @@ def ai_chat():
         if not ai_text.strip():
             return jsonify({"success": False, "message": "Empty response from AI"}), 200
  
+        try:   # usage tracking for the admin dashboard
+            mongo.db.ai_usage.insert_one({"user_id": str(user_id), "ts": utcnow()})
+        except Exception:
+            pass
         return jsonify({"success": True, "reply": ai_text.strip(), "model": "groq"}), 200
  
     except http_requests.Timeout:

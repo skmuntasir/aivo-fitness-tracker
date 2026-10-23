@@ -1,92 +1,123 @@
-import React, { useEffect, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import API from "../services/api";
+import { localDateKey, userTimeZone } from "../utils/time";
+import "./StreakCalendar.css";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const DAYS   = ["S","M","T","W","T","F","S"];
+const CELL = 12;
+const GAP  = 3;
+const colW = CELL + GAP;
 
-function StreakCalendar({ token , refreshKey }) {
-  const [streakData, setStreakData] = useState([]);
-  const [tooltip, setTooltip]       = useState(null);
+const level = (count) => {
+  if (count < 0)     return "out";
+  if (count === 0)   return "l0";
+  if (count < 900)   return "l1";
+  if (count < 1800)  return "l2";
+  if (count < 2700)  return "l3";
+  if (count < 3600)  return "l4";
+  return "l5";
+};
+
+const fmtMin = (sec) => {
+  if (!sec) return "Rest day";
+  const m = Math.floor(sec / 60);
+  return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m active` : `${m} min active`;
+};
+
+// Pure + memoised: a cell only re-renders if ITS date/count changes. Hover tooltips are
+// CSS-only (data-tip), so hovering no longer re-renders all ~370 cells.
+const Cell = memo(function Cell({ date, count }) {
+  const inYear = count >= 0;
+  return (
+    <div
+      className={`sc-cell sc-${level(count)}`}
+      data-tip={inYear ? `${date} · ${fmtMin(count)}` : undefined}
+    />
+  );
+});
+
+const cacheKey = (year) => {
+  let uid = "anon";
+  try { uid = JSON.parse(localStorage.getItem("user") || "{}").id || "anon"; } catch {}
+  return `streak:v3:${uid}:${year}:${userTimeZone}`;
+};
+const readCacheEntry = (year) => {
+  try { return JSON.parse(localStorage.getItem(cacheKey(year))) || null; } catch { return null; }
+};
+const readCache = (year) => readCacheEntry(year)?.data || null;
+
+function StreakCalendar({ token, refreshKey }) {
   const currentYear = new Date().getFullYear();
+
+  // Seed from the last known data so coloured days are there on the FIRST paint after a refresh,
+  // then revalidate in the background (previously: empty grid until the request finished).
+  const [streakData, setStreakData] = useState(() => readCache(currentYear) || []);
+  const [loaded, setLoaded] = useState(() => !!readCache(currentYear));
+  // Streak straight from the server: the same number Home, the leaderboard and the profile use.
+  const [serverStreak, setServerStreak] = useState(() => readCacheEntry(currentYear)?.streak ?? null);
 
   useEffect(() => {
     if (!token) return;
+    let cancelled = false;
     (async () => {
       try {
-        const res = await API.get("/workouts/daily-summary");
-        const data = res.data;
-        if (data.success) setStreakData(data.streak_data);
-      } catch {}
+        const res = await API.get("/workouts/daily-summary", { params: { year: currentYear, tz: userTimeZone } });
+        if (cancelled || !res.data.success) return;
+        setStreakData(res.data.streak_data);
+        const srv = Number.isFinite(res.data.streak) ? res.data.streak : null;
+        setServerStreak(srv);
+        try { localStorage.setItem(cacheKey(currentYear), JSON.stringify({ t: Date.now(), data: res.data.streak_data, streak: srv })); } catch {}
+      } catch { /* keep cached data */ }
+      finally { if (!cancelled) setLoaded(true); }
     })();
-  }, [token , refreshKey]);
+    return () => { cancelled = true; };
+  }, [token, refreshKey, currentYear]);
 
-  const dataMap = {};
-  streakData.forEach(e => { dataMap[e.date] = e.total_duration; });
+  const dataMap = useMemo(() => {
+    const m = {};
+    streakData.forEach((e) => { m[e.date] = e.total_duration; });
+    return m;
+  }, [streakData]);
 
-  const startDate = new Date(currentYear, 0, 1);
-  const endDate   = new Date(currentYear, 11, 31);
-
-  const weeks  = [];
-  const first  = startDate.getDay();
-  let current  = new Date(currentYear, 0, 1 - first);
-
-  while (current <= endDate) {
-    const week = [];
-    for (let d = 0; d < 7; d++) {
-      const iso    = current.toISOString().slice(0, 10);
-      const inYear = current.getFullYear() === currentYear;
-      week.push({ date: iso, count: inYear ? (dataMap[iso] || 0) : -1, day: new Date(current), inYear });
-      current = new Date(current.getTime() + 86400000);
-    }
-    weeks.push(week);
-  }
-
-  const monthLabels = [];
-  weeks.forEach((week, wi) => {
-    week.forEach(cell => {
-      if (cell.inYear && cell.day.getDate() <= 7) {
-        const m = cell.day.getMonth();
-        if (!monthLabels.find(l => l.month === m)) monthLabels.push({ month: m, weekIndex: wi });
+  // Calendar structure depends only on the year => computed once.
+  const { weeks, monthLabels } = useMemo(() => {
+    const weeks = [];
+    const labels = [];
+    const cur = new Date(currentYear, 0, 1 - new Date(currentYear, 0, 1).getDay());
+    const end = new Date(currentYear, 11, 31);
+    while (cur <= end) {
+      const week = [];
+      for (let d = 0; d < 7; d++) {
+        const inYear = cur.getFullYear() === currentYear;
+        week.push({ date: localDateKey(cur), inYear });   // LOCAL date (toISOString() is UTC and shifted days)
+        if (inYear && cur.getDate() <= 7 && !labels.find((l) => l.month === cur.getMonth())) {
+          labels.push({ month: cur.getMonth(), weekIndex: weeks.length });
+        }
+        cur.setDate(cur.getDate() + 1);                   // DST-safe (adding 86400000ms is not)
       }
-    });
-  });
+      weeks.push(week);
+    }
+    return { weeks, monthLabels: labels };
+  }, [currentYear]);
 
-  const getColor = (count) => {
-    if (count < 0)    return "transparent";
-    if (count === 0)  return "rgba(255,255,255,0.04)";
-    if (count < 900)  return "rgba(99,102,241,0.3)";
-    if (count < 1800) return "rgba(99,102,241,0.55)";
-    if (count < 2700) return "rgba(139,92,246,0.7)";
-    if (count < 3600) return "rgba(167,139,250,0.85)";
-    return "#a78bfa";
-  };
+  const { activeDays, totalMin, streak: localStreak } = useMemo(() => {
+    const vals = Object.values(dataMap);
+    let s = 0;
+    const d = new Date();
+    if (!(dataMap[localDateKey(d)] > 0)) d.setDate(d.getDate() - 1); // not trained *yet* today doesn't reset the streak
+    while (dataMap[localDateKey(d)] > 0) { s++; d.setDate(d.getDate() - 1); }
+    return {
+      activeDays: vals.filter((v) => v > 0).length,
+      totalMin: Math.floor(vals.reduce((a, b) => a + b, 0) / 60),
+      streak: s,
+    };
+  }, [dataMap]);
 
-  const fmtMin = (sec) => {
-    if (!sec) return "Rest day";
-    const m = Math.floor(sec / 60);
-    return m >= 60 ? `${Math.floor(m/60)}h ${m%60}m active` : `${m} min active`;
-  };
-
-  const activeDays  = Object.values(dataMap).filter(v => v > 0).length;
-  const totalMin    = Math.floor(Object.values(dataMap).reduce((a, b) => a + b, 0) / 60);
-
-  // Current streak calc
-  const today = new Date().toISOString().slice(0, 10);
-  let streak = 0;
-  let d = new Date();
-  while (true) {
-    const key = d.toISOString().slice(0, 10);
-    if (dataMap[key] > 0) { streak++; d = new Date(d.getTime() - 86400000); }
-    else break;
-  }
-
-  const CELL = 12;
-  const GAP  = 3;
-  const colW = CELL + GAP;
+  const streak = serverStreak ?? localStreak;   // server value wins; local count is only a fallback
 
   return (
     <div style={containerStyle}>
-      {/* Header */}
       <div style={headerStyle}>
         <div>
           <div style={titleStyle}>
@@ -98,37 +129,27 @@ function StreakCalendar({ token , refreshKey }) {
         <div style={statsRowStyle}>
           <div style={statBubble}>
             <span style={statEmoji}>🔥</span>
-            <div>
-              <div style={statVal}>{streak}</div>
-              <div style={statLbl}>Streak</div>
-            </div>
+            <div><div style={statVal}>{streak}</div><div style={statLbl}>Streak</div></div>
           </div>
           <div style={statBubble}>
             <span style={statEmoji}>✅</span>
-            <div>
-              <div style={statVal}>{activeDays}</div>
-              <div style={statLbl}>Active Days</div>
-            </div>
+            <div><div style={statVal}>{activeDays}</div><div style={statLbl}>Active Days</div></div>
           </div>
           <div style={statBubble}>
             <span style={statEmoji}>⏱</span>
             <div>
-              <div style={statVal}>
-                {totalMin >= 60 ? `${Math.floor(totalMin/60)}h` : `${totalMin}m`}
-              </div>
+              <div style={statVal}>{totalMin >= 60 ? `${Math.floor(totalMin / 60)}h` : `${totalMin}m`}</div>
               <div style={statLbl}>Total Time</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Calendar Grid */}
-      <div style={{ overflowX: "auto", paddingBottom: 6 }}>
+      <div className={`sc-scroll ${loaded ? "" : "sc-loading"}`}>
         <div style={{ position: "relative", minWidth: weeks.length * colW + 36 }}>
-          {/* Month labels */}
           <div style={{ display: "flex", marginBottom: 5, paddingLeft: 26 }}>
             {weeks.map((_, wi) => {
-              const lbl = monthLabels.find(l => l.weekIndex === wi);
+              const lbl = monthLabels.find((l) => l.weekIndex === wi);
               return (
                 <div key={wi} style={{ width: colW, flexShrink: 0, fontSize: "0.62rem", color: "rgba(167,139,250,0.6)", fontWeight: 700, letterSpacing: "0.04em" }}>
                   {lbl ? MONTHS[lbl.month] : ""}
@@ -138,7 +159,6 @@ function StreakCalendar({ token , refreshKey }) {
           </div>
 
           <div style={{ display: "flex" }}>
-            {/* Day labels */}
             <div style={{ display: "flex", flexDirection: "column", gap: GAP, marginRight: 5, flexShrink: 0 }}>
               {DAYS.map((d, i) => (
                 <div key={i} style={{ height: CELL, display: "flex", alignItems: "center", justifyContent: "flex-end", paddingRight: 3, fontSize: "0.58rem", color: i % 2 === 1 ? "rgba(167,139,250,0.5)" : "transparent", width: 20, fontWeight: 700 }}>
@@ -147,57 +167,20 @@ function StreakCalendar({ token , refreshKey }) {
               ))}
             </div>
 
-            {/* Cells */}
             {weeks.map((week, wi) => (
               <div key={wi} style={{ display: "flex", flexDirection: "column", gap: GAP, marginRight: GAP }}>
-                {week.map((cell, di) => (
-                  <div
-                    key={di}
-                    title={cell.inYear ? `${cell.date}: ${fmtMin(cell.count)}` : ""}
-                    style={{
-                      width: CELL, height: CELL,
-                      borderRadius: 3,
-                      background: getColor(cell.count),
-                      border: cell.count > 0 ? "1px solid rgba(167,139,250,0.25)" : "1px solid rgba(255,255,255,0.04)",
-                      cursor: cell.inYear ? "pointer" : "default",
-                      transition: "transform 0.12s ease, box-shadow 0.12s ease",
-                      transform: tooltip?.date === cell.date ? "scale(1.4)" : "scale(1)",
-                      boxShadow: tooltip?.date === cell.date && cell.count > 0 ? "0 0 10px rgba(167,139,250,0.6)" : "none",
-                    }}
-                    onMouseEnter={() => cell.inYear && setTooltip({ date: cell.date, count: cell.count })}
-                    onMouseLeave={() => setTooltip(null)}
-                  />
+                {week.map((cell) => (
+                  <Cell key={cell.date} date={cell.date} count={cell.inYear ? (dataMap[cell.date] || 0) : -1} />
                 ))}
               </div>
             ))}
           </div>
-
-          {/* Tooltip */}
-          {tooltip && (
-            <div style={{
-              position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
-              transform: "translateX(-50%)",
-              background: "rgba(8,10,24,0.97)",
-              border: "1px solid rgba(167,139,250,0.35)",
-              borderRadius: 10, padding: "7px 14px",
-              display: "flex", flexDirection: "column", gap: 2,
-              pointerEvents: "none", whiteSpace: "nowrap",
-              boxShadow: "0 10px 30px rgba(0,0,0,0.6)",
-              zIndex: 100,
-            }}>
-              <strong style={{ color: "#eef4ff", fontSize: "0.8rem" }}>{tooltip.date}</strong>
-              <span style={{ color: "rgba(167,139,250,0.85)", fontSize: "0.75rem" }}>{fmtMin(tooltip.count)}</span>
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Legend */}
       <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 14, justifyContent: "flex-end" }}>
         <span style={{ fontSize: "0.65rem", color: "rgba(167,139,250,0.4)", fontWeight: 600 }}>Less</span>
-        {["rgba(255,255,255,0.04)", "rgba(99,102,241,0.3)", "rgba(99,102,241,0.55)", "rgba(139,92,246,0.7)", "rgba(167,139,250,0.85)", "#a78bfa"].map((c, i) => (
-          <div key={i} style={{ width: 12, height: 12, borderRadius: 3, background: c, border: i === 0 ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(167,139,250,0.2)" }} />
-        ))}
+        {["l0", "l1", "l2", "l3", "l4", "l5"].map((l) => <div key={l} className={`sc-cell sc-${l} sc-legend`} />)}
         <span style={{ fontSize: "0.65rem", color: "rgba(167,139,250,0.4)", fontWeight: 600 }}>More</span>
       </div>
     </div>

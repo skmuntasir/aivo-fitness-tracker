@@ -323,3 +323,9 @@
     height: 480px;
   }
 }
+
+/* presence dot on the header avatar + shared empty state spacing */
+.header-avatar { position: relative; }
+.header-avatar .convo-dot { width: 10px; height: 10px; border-color: #12162a; }
+.messages-scroll .ui-empty, .convo-list .ui-empty { margin: auto; }
+.header-status .ui-typing-inline { font-size: .72rem; }

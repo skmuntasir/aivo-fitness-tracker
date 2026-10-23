@@ -1,70 +1,43 @@
-# Fitness App — How to Run
+# Aivo — How to Run
 
-## Prerequisites
-- Node.js 18+
-- Python 3.10+
+**Prerequisites:** Node.js 18+, Python 3.10+, a MongoDB (Atlas free tier or local).
 
----
-
-## ⚡ Quick Start
-
-### Step 1 — Backend
+## Backend
 ```bash
 cd backend
+python -m venv venv && source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Edit the .env file (already created for you):
-# Open backend/.env and replace YOUR_GEMINI_KEY_HERE with your real key
-# (See "Getting your FREE Gemini API key" below)
-
-python app.py
-# Backend runs on http://localhost:5000
+cp .env.example .env        # then fill in MONGO_URI, SECRET_KEY, JWT_SECRET_KEY, GROQ_API_KEY
+python app.py               # http://localhost:5000  (health check: /api/health)
 ```
+`simple-websocket` is in requirements so Socket.IO uses real WebSockets (not slow long-polling).
+Database indexes are created automatically on startup.
 
-### Step 2 — Frontend
+## Frontend
 ```bash
 cd frontend
 npm install
-npm start
-# Frontend runs on http://localhost:3000
+cp .env.example .env        # VITE_BACKEND_URL=http://localhost:5000
+npm run dev                 # http://localhost:3000
 ```
 
----
-
-## 🤖 Getting your FREE Gemini API Key (2 minutes)
-
-1. Go to **https://aistudio.google.com/apikey**
-2. Sign in with any Google account
-3. Click **"Create API Key"** → Copy the key
-4. Open **`backend/.env`** and replace `YOUR_GEMINI_KEY_HERE` with your key:
-
-```
-GEMINI_API_KEY=AIzaSy...your-actual-key-here...
+## Docker
+```bash
+cp backend/.env.example backend/.env   # fill in secrets
+docker compose up --build
 ```
 
-5. Save the file and run `python app.py`
+## AI coach
+Uses **Groq** (`GROQ_API_KEY`). Get a free key at https://console.groq.com/keys.
 
-That's it! The AI will now know your name, age, weight, goals, streak, and everything from your profile.
-
----
-
-## What the AI can do
-
-The FitAI chatbot has full access to your database profile and can answer:
-- "What is my name?" → Tells you your real name from the DB
-- "What are my goals?" → Lists your actual fitness goals
-- "How is my streak?" → Shows your current streak
-- "Create a workout plan for me" → Personalized plan for your level & goals
-- "How many calories should I eat?" → Calculated from your weight, age, height & goals
-- "What should I focus on this week?" → Advice based on your recent workouts
-- Any general fitness, nutrition, or health question
-
----
+## Deploying
+Set `FLASK_ENV=production`, real `SECRET_KEY`/`JWT_SECRET_KEY`, and `CORS_ORIGIN=<your frontend URL>`.
+Never commit `backend/.env` (it is git-ignored).
 
 ## Troubleshooting
+- **AI says "not configured"** → set `GROQ_API_KEY` in `backend/.env`, restart.
+- **Times look wrong on old data** → handled automatically (client treats legacy timestamps as UTC).
+- **Chat shows "Offline" for everyone** → check the browser console: the socket must connect to `VITE_BACKEND_URL`.
 
-**"GEMINI_API_KEY not set"** → Make sure `backend/.env` has your key and you ran `python app.py` (not `flask run`)
-
-**Backend not starting** → Run `pip install -r requirements.txt` first
-
-**AI gives wrong info** → Make sure your Profile page has your age, weight, height, and goals filled in
+## Admin console
+See `ADMIN_GUIDE.md`. Open `/admin/login`; the first registered user is an admin, or run `python backend/create_admin.py you@example.com`.

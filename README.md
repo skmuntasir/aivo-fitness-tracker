@@ -12,6 +12,7 @@ A full-stack fitness management app with AI coaching, real-time social features,
 - 📊 Progress analytics — charts of strength gains and workout frequency
 - 👥 Social — follow friends, activity feed, and real-time chat via Socket.IO
 - 🏆 Leaderboard — compete on streaks and workout volume
+- 🛡️ Admin console — users, moderation, announcements, settings, audit log (see ADMIN_GUIDE.md)
 - 🐳 Docker support — spin up the full stack with one command
 
 ## Tech Stack

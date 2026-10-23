@@ -5,6 +5,8 @@ from bson import ObjectId
 import re
 from datetime import timedelta, datetime
 from ..extensions import mongo
+from ..utils import iso_utc, utcnow, rate_limit, request_tz, effective_streak
+from ..runtime import get_settings
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -47,7 +49,7 @@ def serialize_mongo(value):
     if isinstance(value, ObjectId):
         return str(value)
     if isinstance(value, datetime):
-        return value.isoformat()
+        return iso_utc(value)
     if isinstance(value, dict):
         return {key: serialize_mongo(val) for key, val in value.items()}
     if isinstance(value, list):
@@ -56,9 +58,18 @@ def serialize_mongo(value):
 
 
 @auth_bp.route('/api/auth/register', methods=['POST'])
+@rate_limit('register', 10, 600)
 def register():
+    if not get_settings()['registration_enabled']:
+        return jsonify({'success': False, 'message': 'New registrations are temporarily closed.'}), 403
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
+        for _f in ('age', 'weight', 'height', 'targetWeight'):  # accept "25" as well as 25
+            if data.get(_f) not in (None, ''):
+                try:
+                    data[_f] = float(data[_f]) if _f != 'age' else int(float(data[_f]))
+                except (TypeError, ValueError):
+                    data[_f] = None
         
         # Extract required fields
         email = data.get('email', '').strip().lower()
@@ -74,6 +85,8 @@ def register():
         preferred_units = data.get('preferredUnits', 'metric')
         target_weight = data.get('targetWeight')
         profile_picture = data.get('profilePicture') or None
+        if profile_picture and (not str(profile_picture).startswith('data:image/') or len(profile_picture) > 700_000):
+            profile_picture = None
         
         # Validation
         errors = {}
@@ -147,8 +160,8 @@ def register():
             'target_weight': _clean_weight(target_weight) if target_weight else None,
             'profile_picture': profile_picture,
             'friends': [],
-            'last_active': datetime.utcnow(),
-            'created_at': datetime.utcnow(),
+            'last_active': utcnow(),
+            'created_at': utcnow(),
             'is_admin': is_admin,
             'is_active': True,
             'profile_complete': True
@@ -160,7 +173,8 @@ def register():
         # Create JWT token
         access_token = create_access_token(
             identity=str(result.inserted_id),
-            expires_delta=timedelta(days=7)
+            expires_delta=timedelta(days=7),
+            additional_claims={'tv': 0}
         )
         
         # Return success response
@@ -185,9 +199,10 @@ def register():
         }), 500
 
 @auth_bp.route('/api/auth/login', methods=['POST'])
+@rate_limit('login', 15, 300)
 def login():
     try:
-        data = request.get_json()
+        data = request.get_json() or {}
         
         email = data.get('email', '').strip().lower()
         password = data.get('password', '')
@@ -231,12 +246,13 @@ def login():
         # Create JWT token
         access_token = create_access_token(
             identity=str(user['_id']),
-            expires_delta=timedelta(days=7)
+            expires_delta=timedelta(days=7),
+            additional_claims={'tv': int(user.get('token_version', 0) or 0)}
         )
 
         mongo.db.users.update_one(
             {'_id': user['_id']},
-            {'$set': {'last_active': datetime.utcnow(), 'username': user.get('username') or ''.join([c.lower() for c in user['full_name'] if c.isalnum()])}}
+            {'$set': {'last_active': utcnow(), 'username': user.get('username') or _generate_username(user['full_name'])}}
         )
         
         # Compute total workouts for the user
@@ -256,10 +272,11 @@ def login():
                 'email': user['email'],
                 'full_name': user['full_name'],
                 'username': user.get('username') or ''.join([c.lower() for c in user['full_name'] if c.isalnum()]),
+                'is_admin': bool(user.get('is_admin')),
                 'fitness_level': user.get('fitness_level', ''),
                 'fitness_goals': user.get('fitness_goals', []),
                 'preferred_units': user.get('preferred_units', 'metric'),
-                'streak': user.get('streak', 0),
+                'streak': effective_streak(user, request_tz()),
                 'points': user.get('points', 0),
                 'totalWorkouts': total_workouts,
                 'age': user.get('age'),
@@ -474,11 +491,21 @@ def update_profile():
             except (ValueError, TypeError):
                 pass
 
+    pic = update_fields.get('profile_picture')
+    if pic and (not str(pic).startswith('data:image/') or len(pic) > 700_000):
+        return jsonify({'success': False, 'message': 'Profile picture is invalid or too large.'}), 400
+
     if not update_fields:
         return jsonify({'success': False, 'message': 'No valid fields to update.'}), 400
 
     try:
-        mongo.db.users.update_one({'_id': ObjectId(user_id)}, {'$set': update_fields})
+        ops = {'$set': update_fields}
+        new_weight = update_fields.get('weight')
+        if isinstance(new_weight, int):
+            # Real weight history (the Progress chart used to be synthesised).
+            ops['$push'] = {'weight_history': {'$each': [{'date': utcnow().strftime('%Y-%m-%d'), 'weight': new_weight}],
+                                               '$slice': -52}}
+        mongo.db.users.update_one({'_id': ObjectId(user_id)}, ops)
         return jsonify({'success': True, 'message': 'Profile updated successfully.'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -492,12 +519,12 @@ def delete_account():
 
     try:
         uid_obj = ObjectId(user_id)
-        # Delete all user-related data
         mongo.db.workouts.delete_many({'user_id': user_id})
-        mongo.db.posts.delete_many({'user_id': user_id})
-        mongo.db.messages.delete_many({'$or': [{'sender': user_id}, {'receiver': user_id}]})
-        mongo.db.friend_requests.delete_many({'$or': [{'sender': user_id}, {'receiver': user_id}]})
-        mongo.db.friends.delete_many({'$or': [{'user1': user_id}, {'user2': user_id}]})
+        mongo.db.posts.delete_many({'author': uid_obj})                      # posts use `author` (ObjectId)
+        mongo.db.posts.update_many({}, {'$pull': {'likes': uid_obj, 'comments': {'user': user_id}}})
+        mongo.db.messages.delete_many({'$or': [{'sender': uid_obj}, {'receiver': uid_obj}]})
+        mongo.db.friend_requests.delete_many({'$or': [{'sender': uid_obj}, {'receiver': uid_obj}]})
+        mongo.db.users.update_many({'friends': uid_obj}, {'$pull': {'friends': uid_obj}})
         mongo.db.users.delete_one({'_id': uid_obj})
         return jsonify({'success': True, 'message': 'Account deleted successfully.'})
     except Exception as e:

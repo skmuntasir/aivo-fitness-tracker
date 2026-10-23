@@ -4,4 +4,5 @@ from flask_socketio import SocketIO
 
 mongo = PyMongo()
 jwt = JWTManager()
-socketio = SocketIO(cors_allowed_origins='*', async_mode='threading')
+# threading mode + simple-websocket => real WebSocket transport (no long-polling fallback)
+socketio = SocketIO(async_mode='threading')

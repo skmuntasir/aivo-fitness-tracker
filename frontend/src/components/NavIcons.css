@@ -190,3 +190,6 @@
   background: linear-gradient(135deg, #f472b6, #ec4899);
   box-shadow: 0 2px 6px rgba(236, 72, 153, 0.5);
 }
+
+/* SVG icons inside the round nav buttons */
+.nav-icon-btn .ui-icon { pointer-events: none; }

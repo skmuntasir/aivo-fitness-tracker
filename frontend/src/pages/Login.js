@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import './Login.css';
 import main_logo from './images/aivo_logo.png';
 import API from '../services/api';
+import Icon from '../components/Icon';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -11,7 +12,7 @@ const Login = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() => { const n = sessionStorage.getItem('aivo_notice'); if (n) sessionStorage.removeItem('aivo_notice'); return n || ''; });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -99,7 +100,7 @@ const Login = () => {
                 required
                 className="form-input"
               />
-              <span className="input-icon">📧</span>
+              <span className="input-icon"><Icon name="mail" size={17} /></span>
             </div>
           </div>
 
@@ -120,8 +121,9 @@ const Login = () => {
                 type="button"
                 className="password-toggle"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? "🙈" : "👁️"}
+                <Icon name={showPassword ? "eyeOff" : "eye"} size={18} />
               </button>
             </div>
           </div>
@@ -141,7 +143,7 @@ const Login = () => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <span className="loading-spinner">⏳</span>
+              <span className="login-busy">Signing in…</span>
             ) : (
               'Sign In'
             )}

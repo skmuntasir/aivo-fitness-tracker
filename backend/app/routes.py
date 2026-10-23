@@ -1,229 +1,120 @@
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 import uuid
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson.objectid import ObjectId
-from pymongo.errors import PyMongoError
 from app import mongo
+from app.utils import (parse_client_dt, valid_tz, request_tz, local_date,
+                       local_today, effective_streak, compute_streak, streaks_for_users, utcnow)
 
-
-# Calorie Calculator Blueprint
-calorie_bp = Blueprint('calorie', __name__)
-
-
-@calorie_bp.route('/api/calculate-calories', methods=['POST'])
-@jwt_required()
-def calculate_calories():
-    data = request.get_json()
-    age = data.get('age')
-    weight = data.get('weight')
-    height = data.get('height')
-    gender = data.get('gender')
-    activity = data.get('activityLevel')
-    goal = data.get('goal')
-
-    if not all([age, weight, height, gender, activity, goal]):
-        return jsonify({'success': False, 'message': 'All fields are required'}), 400
-
-    # BMR Calculation (Mifflin-St Jeor Equation)
-    try:
-        if gender.lower() == 'male':
-            bmr = 10 * float(weight) + 6.25 * float(height) - 5 * int(age) + 5
-        else:
-            bmr = 10 * float(weight) + 6.25 * float(height) - 5 * int(age) - 161
-
-        activity_factors = {
-            "sedentary": 1.2,
-            "light": 1.375,
-            "moderate": 1.55,
-            "active": 1.725,
-            "very active": 1.9
-        }
-        calories = bmr * activity_factors.get(activity, 1.2)
-
-        if goal == 'lose':
-            calories -= 500
-        elif goal == 'gain':
-            calories += 500
-
-        return jsonify({'success': True, 'calories': int(calories)}), 200
-    except Exception as e:
-        return jsonify({'success': False, 'message': f'Error calculating: {str(e)}'}), 500
-
-
-# Workouts Blueprint
 workouts_bp = Blueprint('workouts', __name__, url_prefix="/api/workouts")
+users_bp = Blueprint('users', __name__, url_prefix="/api/users")
+
+MAX_WORKOUT_SECONDS = 12 * 3600
 
 
 @workouts_bp.route('/complete', methods=['POST'])
 @jwt_required()
 def complete_workout():
     user_id = get_jwt_identity()
-    data = request.json
+    data = request.get_json() or {}
     try:
-        workout_document = {
-            "_id": str(uuid.uuid4()),
-            "user_id": user_id,
-            "start_time": datetime.fromisoformat(data['start_time']),
-            "end_time": datetime.fromisoformat(data['end_time']),
-            "duration": data['duration'],  # duration in seconds
-            "activity_type": data.get('activity_type')
-        }
+        start = parse_client_dt(data['start_time'])
+        end = parse_client_dt(data['end_time'])
+        tz = valid_tz(data.get('tz'))
 
-        mongo.db.workouts.insert_one(workout_document)
+        # Never trust the client's duration blindly: cap by wall-clock time (+5s slack).
+        claimed = int(data['duration'])
+        wall = max(int((end - start).total_seconds()), 0)
+        duration = max(0, min(claimed, wall + 5, MAX_WORKOUT_SECONDS))
+        if duration < 1:
+            return jsonify(success=False, message='Workout too short to log.'), 400
 
-        
-        user = mongo.db.users.find_one({"_id": ObjectId(user_id)})
-        current_streak = user.get("streak", 0)
-        total_points = user.get("points", 0)
+        mongo.db.workouts.insert_one({
+            "_id": str(uuid.uuid4()), "user_id": user_id,
+            "start_time": start, "end_time": end, "duration": duration,
+            "activity_type": data.get('activity_type'), "tz": tz})
 
-       
-        last_workout = mongo.db.workouts.find_one(
-            {"user_id": user_id, "start_time": {"$lt": workout_document["start_time"]}},
-            sort=[("start_time", -1)]
-        )
+        # Streak is derived from the real workout records (the row above is already inserted), so the
+        # popup, Home, heatmap, leaderboard and profile can never disagree.
+        streak, last_day = compute_streak(user_id, tz)
+        set_fields = {"streak": streak, "tz": tz}
+        if last_day:
+            set_fields["last_workout_date"] = last_day.isoformat()
 
-        new_date = workout_document["start_time"].date()
-        if last_workout:
-            last_date = last_workout["start_time"].date()
-            if (new_date - last_date) == timedelta(days=1):
-                updated_streak = current_streak + 1
-            elif new_date == last_date:
-                updated_streak = current_streak
-            else:
-                updated_streak = 1
-        else:
-            updated_streak = 1
-
-        
-        duration_seconds = int(workout_document['duration'])
-        base_points = duration_seconds // 5
-
-        streak_multiplier = min(1.0 + 0.1 * updated_streak, 2.0)  
-        points_earned = int(base_points * streak_multiplier)
-
-        
-        print(f"Updating user {user_id}: setting streak = {updated_streak}, adding points = {points_earned}")
-
-        result = mongo.db.users.update_one(
-            {"_id": ObjectId(user_id)},
-            {"$set": {"streak": updated_streak},
-             "$inc": {"points": points_earned}}
-        )
-
-        print(f"Update result: acknowledged={result.acknowledged}, matched_count={result.matched_count}, modified_count={result.modified_count}")
-
-        return jsonify(
-            success=True,
-            message="Workout logged!",
-            workout_id=workout_document["_id"],
-            points_earned=points_earned,
-            streak=updated_streak
-        )
+        points = int((duration // 5) * min(1.0 + 0.1 * streak, 2.0))
+        mongo.db.users.update_one({"_id": ObjectId(user_id)},
+                                  {"$set": set_fields, "$inc": {"points": points}})
+        return jsonify(success=True, message="Workout logged!",
+                       points_earned=points, streak=streak, duration=duration)
+    except (KeyError, ValueError, TypeError) as e:
+        return jsonify(success=False, message=f"Invalid workout data: {e}"), 400
     except Exception as e:
-        print(f"Error in complete_workout: {str(e)}")
-        return jsonify(success=False, message=str(e)), 400
+        print(f"Error in complete_workout: {e}")
+        return jsonify(success=False, message="Could not log workout"), 500
 
 
 @workouts_bp.route('/leaderboard', methods=['GET'])
 @jwt_required()
 def leaderboard():
-    
-    top_users = mongo.db.users.find({}, {"full_name": 1, "points": 1, "streak": 1}).sort("points", -1).limit(10)
-
-    leaderboard_list = []
-    for idx, user in enumerate(top_users, start=1):
-        leaderboard_list.append({
-            "rank": idx,
-            "name": user.get("full_name", "N/A"),  
-            "points": user.get("points", 0),
-            "streak": user.get("streak", 0)
-        })
-
-    return jsonify(success=True, leaderboard=leaderboard_list)
-
+    top = list(mongo.db.users.find({"is_active": {"$ne": False}}, {"full_name": 1, "points": 1, "tz": 1}) \
+        .sort("points", -1).limit(10))
+    # Live streaks from the workout records (same rule as Home / heatmap), not the stored counter.
+    streaks = streaks_for_users(top, request_tz())
+    return jsonify(success=True, leaderboard=[
+        {"rank": i, "name": u.get("full_name", "N/A"),
+         "points": u.get("points", 0), "streak": streaks.get(str(u["_id"]), 0)}
+        for i, u in enumerate(top, start=1)])
 
 
 @workouts_bp.route('/daily-summary', methods=['GET'])
 @jwt_required()
 def daily_summary():
+    """Per-day totals, grouped in the *user's* timezone (was UTC => off-by-one days).
+    Optional ?year=YYYY limits the scan (served by the user_id+start_time index)."""
     user_id = get_jwt_identity()
+    tz = request_tz()
+    match = {"user_id": user_id}
+    try:
+        year = int(request.args.get('year', 0))
+    except ValueError:
+        year = 0
+    if year:
+        match["start_time"] = {"$gte": datetime(year - 1, 12, 30), "$lt": datetime(year + 1, 1, 2)}
 
-    pipeline = [
-        {"$match": {"user_id": user_id}},
-        {"$group": {
-            "_id": {
-                "year": {"$year": "$start_time"},
-                "month": {"$month": "$start_time"},
-                "day": {"$dayOfMonth": "$start_time"}
-            },
-            "total_duration": {"$sum": "$duration"}
-        }},
-        {"$sort": {"_id": 1}}
-    ]
-    results = list(mongo.db.workouts.aggregate(pipeline))
-
-    daily_data = []
-    for entry in results:
-        y, m, d = entry['_id']['year'], entry['_id']['month'], entry['_id']['day']
-        date_str = f"{y:04d}-{m:02d}-{d:02d}"
-        daily_data.append({
-            "date": date_str,
-            "total_duration": int(entry["total_duration"])
-        })
-    return jsonify(success=True, streak_data=daily_data)
+    # Group by LOCAL day in Python: tiny projected rows served by the (user_id, start_time) index,
+    # and independent of Mongo's timezone-aware date operators.
+    totals = {}
+    for w in mongo.db.workouts.find(match, {"start_time": 1, "duration": 1, "_id": 0}):
+        key = local_date(w["start_time"], tz).isoformat()
+        totals[key] = totals.get(key, 0) + int(w.get("duration", 0) or 0)
+    streak, _ = compute_streak(user_id, tz)
+    return jsonify(success=True, tz=tz, streak=streak, streak_data=[
+        {"date": d, "total_duration": totals[d]} for d in sorted(totals)])
 
 
-
-users_bp = Blueprint('users', __name__, url_prefix="/api/users")
+@workouts_bp.route('/stats', methods=['GET'])
+@jwt_required()
+def workout_stats():
+    """Cheap endpoint for the Home header (replaces calling the heavy progress-summary)."""
+    user_id = get_jwt_identity()
+    tz = request_tz()
+    user = mongo.db.users.find_one({'_id': ObjectId(user_id)},
+                                   {'streak': 1, 'points': 1, 'last_workout_date': 1, 'tz': 1})
+    total = mongo.db.workouts.count_documents({'user_id': user_id})
+    return jsonify(success=True, total_workouts=total,
+                   streak=effective_streak(user or {}, tz), points=(user or {}).get('points', 0))
 
 
 @users_bp.route('/me', methods=['GET'])
 @jwt_required()
 def get_current_user():
     try:
-        user_id = get_jwt_identity()
-        if not user_id:
-            return jsonify({"success": False, "message": "Missing user identity"}), 401
-
-        try:
-            user_object_id = ObjectId(user_id)
-        except Exception:
-            return jsonify({"success": False, "message": "Invalid user ID format"}), 400
-
-        user = mongo.db.users.find_one({"_id": user_object_id}, {"password": 0})
-        if user:
-            return jsonify({
-                "success": True,
-                "email": user.get("email", ""),
-                "points": user.get("points", 0),
-                "streak": user.get("streak", 0)
-            })
-        else:
-            return jsonify({"success": False, "message": "User not found"}), 404
-    except Exception as e:
-        return jsonify({"success": False, "message": f"Unexpected error: {str(e)}"}), 500
-
-
-
-
-
-
-
-
-
-@workouts_bp.route('/stats', methods=['GET'])
-@jwt_required()
-def workout_stats():
-    user_id = get_jwt_identity()
-    try:
-        total = mongo.db.workouts.count_documents({'user_id': user_id})
-        user = mongo.db.users.find_one({'_id': ObjectId(user_id)})
-        return jsonify({
-            'success': True,
-            'total_workouts': total,
-            'streak': user.get('streak', 0) if user else 0,
-            'points': user.get('points', 0) if user else 0,
-        }), 200
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
+        user_obj = ObjectId(get_jwt_identity())
+    except Exception:
+        return jsonify(success=False, message="Invalid user ID format"), 400
+    user = mongo.db.users.find_one({"_id": user_obj}, {"password": 0, "profile_picture": 0})
+    if not user:
+        return jsonify(success=False, message="User not found"), 404
+    return jsonify(success=True, email=user.get("email", ""), points=user.get("points", 0),
+                   streak=effective_streak(user, request_tz()))
