@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ResponsiveContainer, LineChart, Line, AreaChart, Area,
   BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis,
@@ -47,30 +47,6 @@ const EMPTY_WEIGHT = [
   { week:'Wk 5', weight: 0 }, { week:'Wk 6', weight: 0 },
 ];
 
-
-// ─── FORMAT AI MESSAGE (supports **bold**, bullet points, line breaks) ─────────
-const formatAIMessage = (text) => {
-  if (!text) return null;
-  const lines = text.split('\n');
-  return lines.map((line, i) => {
-    if (!line.trim()) return <br key={i} />;
-    // Parse **bold** text
-    const parts = line.split(/\*\*([^*]+)\*\*/g);
-    const formatted = parts.map((part, pi) =>
-      pi % 2 === 1 ? <strong key={pi} style={{ color: '#c4b5fd', fontWeight: 700 }}>{part}</strong> : part
-    );
-    // Bullet points
-    if (line.trim().startsWith('•') || line.trim().startsWith('-') || line.trim().startsWith('*')) {
-      return (
-        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 3, paddingLeft: 4 }}>
-          <span style={{ color: '#a78bfa', flexShrink: 0, marginTop: 1 }}>•</span>
-          <span>{formatted}</span>
-        </div>
-      );
-    }
-    return <div key={i} style={{ marginBottom: line.trim() ? 4 : 0 }}>{formatted}</div>;
-  });
-};
 
 // ─── AI LOGIC ENGINE ──────────────────────────────────────────────────────────
 const computeHealthScore = (stats) => {
@@ -133,92 +109,6 @@ const generateGoalPrediction = (stats) => {
       ? `Burning ${stats.weekCalories.toLocaleString()} kcal/week — keep this up!`
       : `Increase weekly calorie burn to reach goal sooner`,
   };
-};
-
-// ─── SMART LOCAL AI RESPONSES (used when API key not set) ────────────────────
-const getSmartLocalResponse = (input, stats) => {
-  const lower = input.toLowerCase();
-  const name = stats.name || 'Athlete';
-  const firstName = name.split(' ')[0];
-
-  // Profile/identity questions
-  if (/what.*my name|who am i|my name/i.test(lower))
-    return `Your name is **${name}**! You're logged in as ${firstName}. 😊`;
-  if (/how old|my age|what.*age/i.test(lower))
-    return stats.age ? `You are **${stats.age} years old**. At ${stats.age}, ${stats.age < 30 ? 'you have great recovery capacity — push hard!' : 'consistency and recovery are your biggest levers.'}` : `I don't see your age in your profile. You can update it in Profile settings.`;
-  if (/my weight|how.*weigh|current weight/i.test(lower))
-    return stats.weight ? `Your current weight is **${fmtWeight(stats.weight)} kg**. Your target weight is **${fmtWeight(stats.targetWeight)} kg**. You're ${Math.abs(stats.weight - stats.targetWeight).toFixed(1)} kg from your goal.` : `Weight not set in your profile. Update it in Profile settings for personalized calorie advice.`;
-  if (/my goal|what.*goal|fitness goal/i.test(lower))
-    return `Your goal is **${(stats.goalType || 'fitness improvement').replace('_', ' ')}**. Based on this I recommend: ${stats.goalType === 'fat_loss' ? '3–4 cardio sessions + 2 strength sessions per week, 500 kcal daily deficit.' : stats.goalType === 'muscle_gain' ? '4 strength sessions per week with progressive overload, caloric surplus of 300–500 kcal.' : '3–5 workouts per week mixing cardio and strength.'}`;
-  if (/my streak|how many day|streak/i.test(lower))
-    return `You have a **${stats.streak}-day streak**! ${stats.streak > 7 ? `That's incredible consistency — you're in the top tier! 🔥` : stats.streak > 3 ? `You're building great momentum. Keep going!` : `Let's build that streak! Aim for 7 days straight.`}`;
-  if (/my points|how many point/i.test(lower))
-    return `You've earned **${stats.points} points** so far! ${stats.points > 500 ? '🏆 Amazing performance!' : 'Keep logging workouts to earn more points.'}`;
-  if (/what should i do|what to do|recommend|advice|suggest/i.test(lower))
-    return `Based on your **${(stats.goalType || 'fitness').replace('_', ' ')}** goal and **${stats.streak}-day streak**, here's my recommendation:
-
-**This week:**
-• ${stats.weeklyWorkouts < 4 ? '🎯 Add 1–2 more workout sessions' : '✅ Great workout volume — focus on intensity'}
-• 💧 Drink 2–3L water daily
-• 😴 Aim for 7–9 hours of sleep
-• 🥩 Target ${Math.round((stats.weight || 75) * 2)}g protein daily`;
-
-  // Default - use original function
-  return getAIResponse(input, stats);
-};
-
-// ─── AI COACH RESPONSES ───────────────────────────────────────────────────────
-const getAIResponse = (input, stats) => {
-  const lower = input.toLowerCase();
-  const name  = stats.name || 'champ';
-  const responses = {
-    greeting: [
-      `Hey ${name}! I'm your AI fitness coach. I've loaded your real stats — ${stats.streak}-day streak, ${stats.weeklyWorkouts} workouts this week. Ask me anything! 💪`,
-      `Welcome back, ${name}! Your consistency score is ${stats.consistencyPct}%. Let's talk about how to push that higher. What's on your mind?`,
-    ],
-    workout: [
-      `Based on your ${stats.weeklyWorkouts} sessions this week and ${stats.weekCalories.toLocaleString()} kcal burned, ${stats.weeklyWorkouts < 4 ? 'try adding one more session this week.' : 'you\'re hitting solid volume — focus on intensity over frequency now.'}`,
-      `Your ${stats.streak}-day streak is great! To keep progressing, try progressive overload: add 5% weight to each lift weekly. Track it to stay honest.`,
-      `For your ${stats.goalType.replace('_',' ')} goal, a Push/Pull/Legs split 3x/week with 2 cardio days is ideal. Want me to outline it?`,
-    ],
-    recovery: [
-      `You've trained ${stats.consecutiveDays} days straight. ${stats.consecutiveDays >= 4 ? 'A rest day today is an investment — you\'ll perform better tomorrow.' : 'You\'re recovering well — keep monitoring your sleep.'}`,
-      `Recovery stack: 8h sleep, 3L water, 25g protein post-workout, 10-min foam rolling. These 4 habits alone improve performance by ~18% over 30 days.`,
-    ],
-    nutrition: [
-      `You've burned ${stats.weekCalories.toLocaleString()} kcal this week. To maximize fat loss, target ~1800–2000 kcal/day with 35% protein (~175g). That preserves muscle during a deficit.`,
-      `Hydration is at ${stats.hydration}% of goal. Even mild dehydration (2%) reduces strength significantly. Try 500ml within 30 min of waking — highest-impact habit.`,
-    ],
-    progress: [
-      `This week: ${stats.weeklyWorkouts} workouts, ${stats.weekCalories.toLocaleString()} kcal burned, ${stats.consistencyPct}% consistency. ${stats.consistencyPct > stats.prevConsistencyPct ? `Up ${stats.consistencyPct - stats.prevConsistencyPct}% vs last week — great trend! 🚀` : 'Let\'s push consistency higher this week.'}`,
-      `Your weight is ${fmtWeight(stats.weight)}kg vs target ${fmtWeight(stats.targetWeight)}kg. At your current pace, you'll reach your goal in approximately ${generateGoalPrediction(stats).weeks} weeks.`,
-    ],
-    motivation: [
-      `Your ${stats.streak}-day streak puts you in the top tier of consistency. That discipline is rarer than any workout plan.`,
-      `${stats.totalWorkouts} total workouts logged. Every single one compounded your results. The process works when you trust it.`,
-      `One slow week doesn't erase ${stats.totalWorkouts} good sessions. Progress isn't linear — you're still ahead of who you were last month.`,
-    ],
-    slow: [
-      `Plateaus after 4–6 weeks are normal — your body adapted. Solutions: change workout split, add 15% more volume, or take a deliberate deload week. Then come back harder.`,
-      `If the scale isn't moving but energy is up and clothes fit better, you're losing fat AND gaining muscle — body recomposition. The scale lies; your performance doesn't.`,
-    ],
-    default: [
-      `Based on your stats — ${stats.streak}-day streak, ${stats.consistencyPct}% consistency, ${stats.weekCalories.toLocaleString()} kcal this week — you're making solid progress. What specifically do you want to optimize?`,
-      `I can help with workout planning, nutrition, recovery, or goal tracking. What area do you want to dive into?`,
-    ],
-  };
-
-  let key = 'default';
-  if (/hi|hello|hey|start|help/.test(lower))                              key = 'greeting';
-  else if (/workout|train|exercise|session|lift|cardio|run|gym/.test(lower)) key = 'workout';
-  else if (/recover|rest|fatigue|tired|sore|sleep/.test(lower))           key = 'recovery';
-  else if (/eat|food|nutrition|calorie|protein|diet|hydrat|water/.test(lower)) key = 'nutrition';
-  else if (/progress|goal|weight|result|target|fat|muscle/.test(lower))   key = 'progress';
-  else if (/motivat|inspir|quit|discourage|hard|difficult/.test(lower))   key = 'motivation';
-  else if (/slow|plateau|stuck|not work|no result/.test(lower))           key = 'slow';
-
-  const arr = responses[key];
-  return arr[Math.floor(Math.random() * arr.length)];
 };
 
 // ─── RADAR DATA (computed from real stats) ────────────────────────────────────
@@ -329,14 +219,6 @@ const Progress = () => {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [chatOpen, setChatOpen]   = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { role:'ai', text:"Hey! I'm your AI Coach. Loading your real fitness data now... 🔄" }
-  ]);
-  const [chatInput, setChatInput] = useState('');
-  const [isTyping, setIsTyping]   = useState(false);
-  const [hasUserMessaged, setHasUserMessaged] = useState(false);
-  const chatEndRef = useRef(null);
 
   // ── Fetch real data from backend ──────────────────────────────────────────
   useEffect(() => {
@@ -384,11 +266,6 @@ const Progress = () => {
 
           setWeightData(s.weight_history || []);   // real entries only (backend no longer fabricates a trend)
 
-          // Update chat greeting with real name
-          setChatMessages([{
-            role: 'ai',
-            text: `Hey ${s.name ? s.name.split(' ')[0] : 'there'}! I've loaded your real fitness data — ${s.streak || 0}-day streak, ${s.weekly_workouts || 0} workouts this week, ${(s.week_calories || 0).toLocaleString()} kcal burned. Ask me anything! 💪`
-          }]);
         } else {
           setError('Could not load your fitness data. Please try again.');
         }
@@ -402,10 +279,6 @@ const Progress = () => {
 
     fetchData();
   }, []);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages, isTyping]);
 
   // ── Derived / memoised values ─────────────────────────────────────────────
   const healthScore     = useMemo(() => computeHealthScore(stats), [stats]);
@@ -423,61 +296,6 @@ const Progress = () => {
   const goalProgressPct = stats.startWeight > stats.targetWeight
     ? Math.round(((stats.startWeight - stats.weight) / (stats.startWeight - stats.targetWeight)) * 100)
     : 0;
-
-  // ── Chat ─────────────────────────────────────────────────────────────────
-  const sendChat = useCallback(async (text) => {
-    const msg = text || chatInput;
-    if (!msg.trim()) return;
-
-    // Snapshot history BEFORE adding new user message
-    const prevHistory = [...chatMessages];
-    setChatMessages(prev => [...prev, { role: 'user', text: msg }]);
-    setChatInput('');
-    setIsTyping(true);
-    setHasUserMessaged(true);
-
-    // Build API messages from previous history + new user message
-    const apiMessages = [...prevHistory, { role: 'user', text: msg }]
-      .filter(m => m.role === 'user' || m.role === 'ai')
-      .map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
-
-    try {
-      const res = await API.post('/ai/chat', { messages: apiMessages });
-      setIsTyping(false);
-      if (res.data.success) {
-        setChatMessages(prev => [...prev, { role: 'ai', text: res.data.reply }]);
-      } else {
-        // Show the actual backend error message (e.g. Gemini API error)
-        const backendMsg = res.data.message || 'Sorry, I had trouble responding. Please try again.';
-        setChatMessages(prev => [...prev, { role: 'ai', text: '⚠️ ' + backendMsg }]);
-      }
-    } catch (err) {
-      setIsTyping(false);
-      // err.response.data.message carries the real error when backend returns non-2xx
-      const serverMsg = err?.response?.data?.message;
-      const statusCode = err?.response?.status;
-      let friendlyMsg;
-      if (serverMsg) {
-        friendlyMsg = '⚠️ ' + serverMsg;
-      } else if (statusCode === 503) {
-        friendlyMsg = '⚠️ AI not configured. Please set GROQ_API_KEY in backend/.env and restart Flask.';
-      } else if (statusCode === 504) {
-        friendlyMsg = '⏱ AI request timed out. Please try again.';
-      } else if (!statusCode) {
-        friendlyMsg = '⚠️ Cannot reach the backend. Make sure Flask is running on port 5000.';
-      } else {
-        friendlyMsg = '⚠️ Server error (HTTP ' + statusCode + '). Check the Flask terminal for details.';
-      }
-      setChatMessages(prev => [...prev, { role: 'ai', text: friendlyMsg }]);
-    }
-  }, [chatInput, chatMessages]);
-
-  const quickPrompts = [
-    'What is my name and goals?',
-    'Create a workout plan for me',
-    'How many calories should I eat?',
-    'How is my streak?',
-  ];
 
   // ── Error state ───────────────────────────────────────────────────────────
   if (error && !loading) {
@@ -1046,58 +864,6 @@ const Progress = () => {
             </div>
           </div>
         )}
-      </div>
-
-      {/* ══════════════ AI CHAT COACH ══════════════ */}
-      <div className={`pg-chat-fab-wrap ${chatOpen?'open':''}`}>
-        {chatOpen && (
-          <div className="pg-chat-panel">
-            <div className="pg-chat-header">
-              <div className="pg-chat-avatar">🤖</div>
-              <div>
-                <div className="pg-chat-title">Aivo Coach</div>
-                <div className="pg-chat-status">● Online · Knows your full profile</div>
-              </div>
-              <button className="pg-chat-close" onClick={() => setChatOpen(false)}>✕</button>
-            </div>
-            <div className="pg-chat-body">
-              {chatMessages.map((msg,i) => (
-                <div key={i} className={`pg-msg pg-msg-${msg.role}`}>
-                  {msg.role==='ai' && <span className="pg-msg-avatar">🤖</span>}
-                  <div className="pg-msg-bubble">{msg.role === 'ai' ? formatAIMessage(msg.text) : msg.text}</div>
-                </div>
-              ))}
-              {isTyping && (
-                <div className="pg-msg pg-msg-ai">
-                  <span className="pg-msg-avatar">🤖</span>
-                  <div className="pg-msg-bubble pg-typing"><span/><span/><span/></div>
-                </div>
-              )}
-              <div ref={chatEndRef}/>
-            </div>
-            {!hasUserMessaged && (
-            <div className="pg-chat-quick">
-              {quickPrompts.map(p => (
-                <button key={p} className="pg-quick-btn" onClick={() => { sendChat(p); setHasUserMessaged(true); }}>{p}</button>
-              ))}
-            </div>
-            )}
-            <div className="pg-chat-input-row">
-              <input
-                className="pg-chat-input"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key==='Enter' && !e.shiftKey && sendChat()}
-                placeholder="Ask your AI coach anything…"
-              />
-              <button className="pg-chat-send" onClick={() => sendChat()} disabled={!chatInput.trim()||isTyping}>↑</button>
-            </div>
-          </div>
-        )}
-        <button className={`pg-chat-fab ${chatOpen?'active':''}`} onClick={() => setChatOpen(v => !v)}>
-          {chatOpen ? '✕' : '🤖'}
-          {!chatOpen && <span className="pg-fab-pulse"/>}
-        </button>
       </div>
     </div>
   );

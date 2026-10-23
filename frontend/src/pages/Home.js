@@ -8,6 +8,7 @@ import WorkoutTimer from '../components/WorkoutTimer';
 import StreakCalendar from '../components/StreakCalendar';
 import NavIcons from '../components/NavIcons';
 import AnnouncementBanner from '../components/AnnouncementBanner';
+import AiCoach from '../components/AiCoach';
 import Icon from '../components/Icon';
 import { prefetchFeed } from '../utils/feedCache';
 import { localDateKey, userTimeZone } from '../utils/time';
@@ -266,6 +267,9 @@ const Home = () => {
           <StreakCalendar token={token} refreshKey={streakKey} />
         </section>
       </main>
+
+      {/* Floating AI coach — sits beside the streak calendar and follows you as you scroll */}
+      <AiCoach />
 
       {/* Calorie Calculator Modal */}
       {showCalorieCalculator && (
