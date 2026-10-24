@@ -1,0 +1,110 @@
+/* ── Calorie Calculator — Progress page dark theme ── */
+.calc-wrap {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 20px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 480px;
+  margin: 0 auto;
+  color: #eef4ff;
+  font-family: 'Inter', -apple-system, sans-serif;
+}
+
+.calc-header { display: flex; align-items: flex-start; gap: 14px; }
+.calc-icon { font-size: 1.6rem; }
+.calc-title { font-size: 1.05rem; font-weight: 700; color: #e0e7ff; }
+.calc-sub { font-size: 0.78rem; color: #7a8bb0; margin-top: 2px; }
+
+.calc-form { display: flex; flex-direction: column; gap: 14px; }
+.calc-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.calc-field { display: flex; flex-direction: column; gap: 6px; }
+.calc-field label { font-size: 0.78rem; font-weight: 600; color: #a5b4fc; }
+
+.calc-input, .calc-select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(129,140,248,0.2);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: #e0e7ff;
+  font-size: 0.88rem;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.2s, background 0.2s;
+  font-family: inherit;
+}
+.calc-input:focus, .calc-select:focus {
+  border-color: #818cf8;
+  background: rgba(129,140,248,0.09);
+}
+.calc-input::placeholder { color: #4a5568; }
+.calc-select option { background: #0d1a35; color: #e0e7ff; }
+
+/* Goal picker */
+.calc-goal-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.calc-goal-btn {
+  flex: 1; min-width: 90px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 12px;
+  padding: 10px 8px;
+  color: #7a8bb0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: transform 0.2s, opacity 0.2s, background-color 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+.calc-goal-btn:hover { background: rgba(255,255,255,0.08); color: #e0e7ff; }
+.calc-goal-btn.active {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.calc-submit {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.15s;
+  font-family: inherit;
+  margin-top: 4px;
+}
+.calc-submit:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.calc-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Result */
+.calc-result {
+  background: rgba(129,140,248,0.08);
+  border: 1px solid rgba(129,140,248,0.2);
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+.calc-result-label { font-size: 0.78rem; color: #a5b4fc; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+.calc-result-value { font-size: 2.6rem; font-weight: 800; color: #818cf8; margin: 6px 0 2px; line-height: 1; }
+.calc-result-unit { font-size: 0.82rem; color: #7a8bb0; }
+.calc-result-hint { font-size: 0.8rem; color: #7a8bb0; margin: 10px 0 0; line-height: 1.5; }
+
+.calc-error {
+  background: rgba(239,68,68,0.09);
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  color: #f87171;
+  font-size: 0.86rem;
+}

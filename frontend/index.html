@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Aivo — Intelligent Fitness. Limitless You." />
+    <meta name="theme-color" content="#0b1020" />
+    <title>Aivo</title>
+    <!-- Critical CSS: paint the dark app background + a tiny loader instantly, before any JS/CSS arrives.
+         Removes the white flash and gives the page something to show while the bundle downloads. -->
+    <style>
+      html, body { margin: 0; background: #050816; color-scheme: dark; }
+      #root:empty { min-height: 100vh; display: grid; place-items: center; }
+      #root:empty::after {
+        content: ''; width: 34px; height: 34px; border-radius: 50%;
+        border: 3px solid rgba(167, 139, 250, 0.22); border-top-color: #a78bfa;
+        animation: aivoBoot .7s linear infinite;
+      }
+      @keyframes aivoBoot { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
