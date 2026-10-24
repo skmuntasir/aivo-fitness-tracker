@@ -18,6 +18,27 @@ const CalorieCalculator = lazy(loadCalorie);
 const WorkoutTimer = lazy(loadTimer);
 const AiCoach = lazy(() => import('../components/AiCoach'));
 
+// Dashboard card cache: the week strip / ring used to start empty (skeleton) on every visit.
+// We keep the last result per user (memory + localStorage) so it paints instantly and refreshes quietly.
+const dashKey = () => {
+  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return `dash:v1:${u.id || u._id || 'anon'}`; } catch { return 'dash:v1:anon'; }
+};
+let dashMem = null;   // survives route changes without touching storage
+const readDash = () => {
+  const k = dashKey();
+  if (dashMem && dashMem.k === k) return dashMem.v;
+  try { const v = JSON.parse(localStorage.getItem(k)); if (v && typeof v === 'object') { dashMem = { k, v }; return v; } } catch {}
+  return null;
+};
+const writeDash = (v) => {
+  const k = dashKey();
+  dashMem = { k, v };
+  try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+};
+if (typeof window !== 'undefined') {
+  window.addEventListener('logout', () => { dashMem = null; try { Object.keys(localStorage).filter((k) => k.startsWith('dash:v1:')).forEach((k) => localStorage.removeItem(k)); } catch {} });
+}
+
 const WEEKLY_GOAL = 5;                       // workouts per week shown on the dashboard ring
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
@@ -51,7 +72,7 @@ const Home = () => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   });
   const [liveStats, setLiveStats] = useState({ streak: null, points: null, totalWorkouts: null });
-  const [dayTotals, setDayTotals] = useState(null);   // { 'YYYY-MM-DD': seconds } — null while loading
+  const [dayTotals, setDayTotals] = useState(() => readDash()?.dayTotals || null);   // { 'YYYY-MM-DD': seconds } — null only on the very first visit
 
   const firstName = userProfile?.full_name?.split(' ')[0] || 'Athlete';
 
@@ -91,6 +112,7 @@ const Home = () => {
         const m = {};
         (res.data.streak_data || []).forEach((e) => { m[e.date] = e.total_duration; });
         setDayTotals(m);
+        writeDash({ ...(readDash() || {}), dayTotals: m });
       } catch { if (!cancelled) setDayTotals((prev) => prev || {}); }
     })();
     return () => { cancelled = true; };

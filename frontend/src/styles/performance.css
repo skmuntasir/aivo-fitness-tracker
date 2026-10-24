@@ -3,14 +3,17 @@
 
 /* ── Scrolling ─────────────────────────────────────────────── */
 html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
-body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
+body { -webkit-tap-highlight-color: transparent; }
 a, button, [role="button"], input, select, textarea, label { touch-action: manipulation; }
 
-/* Scrollable panels: contain scroll chaining and keep momentum scrolling on iOS */
-[class*="messages"], [class*="-body"], [class*="-list"], .modal-box, .ac-panel {
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-}
+/* Wheel / trackpad scrolling: html, body and #root each had `overflow-x: hidden`, which silently turns
+   every one of them into a scroll container and makes the mouse wheel get "stuck" on them.
+   `clip` hides horizontal overflow WITHOUT creating a scroll container, so the page itself scrolls natively.
+   (Higher specificity so it also beats App.css, which loads later.) Browsers without `clip` keep `hidden`. */
+html, html body, html body #root { overflow-x: clip; overflow-y: visible; }
+
+/* Only real inner scrollers keep their scroll inside (no page jump when you reach their end) */
+.messages-scroll, .modal-box { overscroll-behavior: contain; }
 
 /* ── Rendering ─────────────────────────────────────────────── */
 /* Decorative blurred orbs / backgrounds: own GPU layer, painted once, never repainted on scroll */
