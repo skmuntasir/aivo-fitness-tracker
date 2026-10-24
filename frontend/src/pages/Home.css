@@ -62,8 +62,6 @@
   top: 0;
   width: 100%;
   background: rgba(5, 8, 22, 0.90);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   height: 68px;
   display: flex;
@@ -108,7 +106,6 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   padding: 5px 8px;
-  backdrop-filter: blur(16px);
 }
 
 .nav-button {
@@ -123,7 +120,7 @@
   font-weight: 600;
   font-size: 0.82rem;
   cursor: pointer;
-  transition: all 0.22s ease;
+  transition: transform 0.22s ease, opacity 0.22s ease, background-color 0.22s ease, border-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease;
   white-space: nowrap;
   letter-spacing: 0.01em;
 }
@@ -245,7 +242,7 @@
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: transform 0.25s ease, opacity 0.25s ease, background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
   box-shadow: 0 8px 30px rgba(91, 109, 206, 0.45), 0 0 0 1px rgba(255,255,255,0.08) inset;
   letter-spacing: 0.02em;
 }
@@ -270,7 +267,7 @@
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: transform 0.25s ease, opacity 0.25s ease, background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
   box-shadow: 0 8px 30px rgba(91, 109, 206, 0.45), 0 0 0 1px rgba(255,255,255,0.08) inset;
   letter-spacing: 0.02em;
 }
@@ -319,7 +316,6 @@
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 20px;
-  backdrop-filter: blur(18px);
   box-shadow: 0 8px 24px rgba(0,0,0,0.25);
   min-width: 80px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -363,7 +359,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  backdrop-filter: blur(20px);
   box-shadow: 0 0 50px rgba(91, 109, 206, 0.2);
 }
 
@@ -432,7 +427,6 @@
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-  backdrop-filter: blur(20px);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
   display: flex;
   flex-direction: column;
@@ -631,7 +625,7 @@
 .dash-card {
   position: relative; width: 100%; max-width: 440px; padding: 22px 22px 20px; border-radius: 28px; display: flex; flex-direction: column; gap: 18px;
   background: rgba(10, 14, 34, 0.72); border: 1px solid var(--accent-ring, rgba(139, 92, 246, 0.2));
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset; backdrop-filter: blur(22px);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
 }
 .dash-top { display: flex; align-items: center; gap: 20px; }
 .dash-ring { position: relative; width: 132px; height: 132px; flex: none; }

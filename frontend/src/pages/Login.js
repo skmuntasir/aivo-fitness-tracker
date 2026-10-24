@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Login.css';
-import main_logo from './images/aivo_logo.png';
+import main_logo from './images/aivo_logo.webp';
 import API from '../services/api';
 import Icon from '../components/Icon';
 
@@ -68,7 +68,7 @@ const Login = () => {
       <div className="login-card">
         <div className="login-header">
           <div className="logo">
-            <img src={main_logo} alt="Aivo" className="main-logo" />
+            <img src={main_logo} alt="Aivo" className="main-logo" width="360" height="240" decoding="async" fetchPriority="high" />
           </div>
           <p className="welcome-text">Welcome back! Let's get you moving.</p>
         </div>

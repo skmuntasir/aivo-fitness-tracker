@@ -43,7 +43,6 @@
   background: rgba(10, 14, 34, 0.88);
   border: 1px solid rgba(139,92,246,0.16);
   box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset;
-  backdrop-filter: blur(24px);
   max-height: 92vh;
   overflow-y: auto;
   animation: slideUp 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
@@ -209,7 +208,7 @@
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid transparent;
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .checkbox-wrapper:hover { background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.15); }
 .checkbox-wrapper input[type="checkbox"] { display: none; }
@@ -222,7 +221,7 @@
   justify-content: center;
   background: rgba(139,92,246,0.06);
   flex-shrink: 0;
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .checkbox-wrapper input[type="checkbox"]:checked + .checkmark {
   background: linear-gradient(135deg, #7c3aed, #6d28d9);
@@ -248,7 +247,7 @@
   border-radius: 10px;
   border: 1px solid rgba(139,92,246,0.15);
   background: rgba(139,92,246,0.05);
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .radio-wrapper:hover { background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.28); }
 .radio-mark {
@@ -285,7 +284,7 @@
   font-size: 1rem;
   cursor: pointer;
   box-shadow: 0 8px 28px rgba(109,40,217,0.4), 0 0 0 1px rgba(255,255,255,0.08) inset;
-  transition: all 0.22s ease;
+  transition: transform 0.22s ease, opacity 0.22s ease, background-color 0.22s ease, border-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease;
   letter-spacing: 0.02em;
 }
 .register-button:hover:not(:disabled) {

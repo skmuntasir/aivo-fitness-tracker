@@ -14,7 +14,7 @@
 .pg-orb2 { width: 500px; height: 500px; background: radial-gradient(circle, #7f5cbf, transparent 70%); top: 30%; right: -100px; }
 .pg-orb3 { width: 400px; height: 400px; background: radial-gradient(circle, #3951b0, transparent 70%); bottom: -80px; left: 30%; }
 .pg-eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: 2px; color: #818cf8; text-transform: uppercase; display: block; margin-bottom: 6px; }
-.glass-panel { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 24px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+.glass-panel { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 24px;}
 
 .friends-content { position: relative; z-index: 1; max-width: 1000px; margin: 0 auto; padding: 100px 24px 60px; display: flex; flex-direction: column; gap: 20px; }
 

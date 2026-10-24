@@ -1,18 +1,22 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
-import main_logo from './images/aivo_logo.png';
+import main_logo from './images/aivo_logo.webp';
 import API from '../services/api';
-import CalorieCalculator from '../components/CalorieCalculator';
-import WorkoutTimer from '../components/WorkoutTimer';
 import StreakCalendar from '../components/StreakCalendar';
 import NavIcons from '../components/NavIcons';
 import AnnouncementBanner from '../components/AnnouncementBanner';
-import AiCoach from '../components/AiCoach';
 import Icon from '../components/Icon';
 import { prefetchFeed } from '../utils/feedCache';
 import { localDateKey, userTimeZone } from '../utils/time';
 
+
+// Heavy widgets that are not needed for the first paint: loaded on demand (modals) or when idle (coach)
+const loadCalorie = () => import('../components/CalorieCalculator');
+const loadTimer = () => import('../components/WorkoutTimer');
+const CalorieCalculator = lazy(loadCalorie);
+const WorkoutTimer = lazy(loadTimer);
+const AiCoach = lazy(() => import('../components/AiCoach'));
 
 const WEEKLY_GOAL = 5;                       // workouts per week shown on the dashboard ring
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
@@ -101,7 +105,11 @@ const Home = () => {
 
   useEffect(() => {
     const t = setTimeout(warmCommunity, 700);
-    return () => clearTimeout(t);
+    // download the modal code during idle time so Start Workout / Calories open instantly
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1500));
+    const cancel = window.cancelIdleCallback || clearTimeout;
+    const h = idle(() => { loadTimer().catch(() => {}); loadCalorie().catch(() => {}); });
+    return () => { clearTimeout(t); cancel(h); };
   }, [warmCommunity]);
 
   const handleWorkoutComplete = () => {
@@ -154,11 +162,11 @@ const Home = () => {
       <header className="header">
         <div className="header-content">
           <div className="logo-section">
-            <img src={main_logo} alt="Aivo" className="main-logo" />
+            <img src={main_logo} alt="Aivo" className="main-logo" width="360" height="240" decoding="async" fetchPriority="high" />
           </div>
           <NavIcons />
           <div className="nav-buttons">
-            <button className="nav-button calorie-btn" onClick={() => setShowCalorieCalculator(true)}>
+            <button className="nav-button calorie-btn" onClick={() => setShowCalorieCalculator(true)} onPointerEnter={loadCalorie}>
               <Icon name="calculator" size={16} /> Calories
             </button>
             <button className="nav-button leaderboard-btn" onClick={() => navigate('/leaderboard')}>
@@ -195,7 +203,7 @@ const Home = () => {
             <p className="hero-date"><Icon name="calendar" size={14} /> {new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p>
             <p className="hero-subtitle">{subline}</p>
             <div className="hero-actions">
-              <button className="cta-primary" onClick={() => setShowWorkoutTimer(true)}>
+              <button className="cta-primary" onClick={() => setShowWorkoutTimer(true)} onPointerEnter={loadTimer}>
                 <span className="cta-icon"><Icon name="play" size={16} /></span>
                 Start Workout
               </button>
@@ -269,14 +277,16 @@ const Home = () => {
       </main>
 
       {/* Floating AI coach — sits beside the streak calendar and follows you as you scroll */}
-      <AiCoach />
+      <Suspense fallback={null}><AiCoach /></Suspense>
 
       {/* Calorie Calculator Modal */}
       {showCalorieCalculator && (
         <div className="modal-overlay" onClick={() => setShowCalorieCalculator(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setShowCalorieCalculator(false)}>×</button>
-            <CalorieCalculator token={token} profile={userProfile} />
+            <Suspense fallback={<div className="modal-loading"><span className="route-spinner" /></div>}>
+              <CalorieCalculator token={token} profile={userProfile} />
+            </Suspense>
           </div>
         </div>
       )}
@@ -286,7 +296,9 @@ const Home = () => {
         <div className="modal-overlay" onClick={closeTimer}>
           <div className="modal-box timer-modal" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={closeTimer} aria-label="Close timer">×</button>
-            <WorkoutTimer ref={timerRef} token={token} onWorkoutComplete={handleWorkoutComplete} onClose={() => setShowWorkoutTimer(false)} />
+            <Suspense fallback={<div className="modal-loading"><span className="route-spinner" /></div>}>
+              <WorkoutTimer ref={timerRef} token={token} onWorkoutComplete={handleWorkoutComplete} onClose={() => setShowWorkoutTimer(false)} />
+            </Suspense>
           </div>
         </div>
       )}

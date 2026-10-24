@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import ADMIN, { errMsg } from '../adminApi';
 import { useAdmin } from '../adminContext';
 import Icon from '../Icon';
-import logo from '../../pages/images/aivo_logo.png';
+import logo from '../../pages/images/aivo_logo.webp';
 
 const EyeOff = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -51,7 +51,7 @@ export default function LoginPage() {
     <div className="a-auth">
       <div className="a-auth-card">
         <div className="a-auth-head">
-          <img src={logo} alt="Aivo" className="a-auth-logo" />
+          <img src={logo} alt="Aivo" className="a-auth-logo" decoding="async" />
           <span className="a-auth-badge"><Icon name="shield" size={14} /> Admin Console</span>
           <p className="a-auth-welcome">Welcome back! Sign in to manage the platform.</p>
         </div>

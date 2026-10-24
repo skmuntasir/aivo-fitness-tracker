@@ -1,0 +1,55 @@
+/* Performance layer — loaded last. Pure CSS, no visual redesign.
+   Goals: smooth scrolling, cheap rendering, no layout jumps, soft page transitions. */
+
+/* ── Scrolling ─────────────────────────────────────────────── */
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent; }
+a, button, [role="button"], input, select, textarea, label { touch-action: manipulation; }
+
+/* Scrollable panels: contain scroll chaining and keep momentum scrolling on iOS */
+[class*="messages"], [class*="-body"], [class*="-list"], .modal-box, .ac-panel {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Rendering ─────────────────────────────────────────────── */
+/* Decorative blurred orbs / backgrounds: own GPU layer, painted once, never repainted on scroll */
+.orb, .pg-bg-orb, .home-bg-gradient, .home-bg-orbs, .pg-bg {
+  pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* Long lists: the browser skips layout/paint of off-screen items until they near the viewport */
+.comm-post { content-visibility: auto; contain-intrinsic-size: auto 260px; }
+.friend-card { content-visibility: auto; contain-intrinsic-size: auto 64px; }
+.lb-table-card tbody tr, .lb-row { content-visibility: auto; contain-intrinsic-size: auto 56px; }
+
+/* Images never block layout; keep their space reserved so nothing jumps */
+img { max-width: 100%; height: auto; }
+img[loading="lazy"] { content-visibility: auto; }
+
+/* Continuous animations run on the compositor only */
+.ac-fab-pulse, .sk::after, .ui-dots i { will-change: transform, opacity; }
+
+/* ── Page transitions ─────────────────────────────────────── */
+/* Every page root is a direct child of .App; fade it in softly (opacity only, so fixed children are unaffected) */
+.App > * { animation: aivoRouteIn .22s ease-out both; }
+@keyframes aivoRouteIn { from { opacity: 0; } to { opacity: 1; } }
+
+.route-loading { min-height: 100vh; display: grid; place-items: center; animation: none !important; }
+.modal-loading { min-height: 160px; display: grid; place-items: center; }
+.route-spinner {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid rgba(167, 139, 250, 0.22); border-top-color: #a78bfa;
+  animation: aivoSpin .7s linear infinite;
+}
+@keyframes aivoSpin { to { transform: rotate(360deg); } }
+
+/* ── Accessibility: respect reduced-motion ─────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .App > * { animation: none; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

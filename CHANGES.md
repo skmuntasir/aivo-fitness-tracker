@@ -1,3 +1,20 @@
+# Update: site-wide speed & smoothness pass
+
+| Area | Change |
+|------|--------|
+| Page loading | Critical dark background + spinner inlined in `index.html` (no white flash); API origin preconnected; logo converted PNG -> WebP (104 KB -> 22 KB); Home no longer downloads the workout timer, calorie calculator, AI coach or chat widget up front (loaded on idle / on hover); other pages' code is prefetched while the browser is idle (skipped on data-saver / 2G); build targets ES2020 and strips `console.log` |
+| Page rendering | Removed `backdrop-filter` from scrolling cards/headers/nav (it re-blurs every frame while scrolling; the surfaces are already near-opaque on the dark theme). Kept on modal overlays and the login cards. `transition: all` replaced with explicit properties (13 places). Decorative orbs promoted to their own GPU layer. Long lists (`.comm-post`, `.friend-card`) use `content-visibility: auto` |
+| Scrolling | Smooth anchor scrolling, `overscroll-behavior`, touch-action tuning; scroll chaining contained inside panels |
+| Objects loading | Progress counters/score ring use `requestAnimationFrame` instead of 16-20 ms `setInterval` re-renders; lazy-loaded modals show a spinner instead of blocking; logo has explicit size + async decode |
+| Transitions | Soft 220 ms fade between pages (opacity only; disabled with `prefers-reduced-motion`) |
+| Backend | JSON/text responses > 1 KB are gzip-compressed (no new dependency); JSON keys no longer sorted per response |
+| Hosting | `frontend/vercel.json` adds long-lived immutable caching for `/assets/*` (SPA rewrite unchanged) |
+
+New files: `frontend/src/styles/performance.css`, `frontend/src/utils/prefetch.js`, `frontend/src/pages/images/aivo_logo.webp` (replaces `aivo_logo.png`).
+Edited: `index.html`, `vite.config.js`, `main.jsx`, `App.jsx`, `pages/Home.js`, `pages/Login.js`, `pages/Progress.js`, `admin/pages/LoginPage.jsx`, several `.css` files, `backend/app/__init__.py`. No new dependencies, no API changes.
+
+---
+
 # Update: timer fit, consistent streak, fast community feed
 
 | # | Issue | Root cause | Fix |

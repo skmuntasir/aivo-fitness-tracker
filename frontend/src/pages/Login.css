@@ -197,7 +197,7 @@
   justify-content: center;
   background: rgba(139,92,246,0.06);
   flex-shrink: 0;
-  transition: all 0.15s;
+  transition: transform 0.15s, opacity 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .checkbox-wrapper input[type="checkbox"]:checked + .checkmark {
   background: linear-gradient(135deg, #7c3aed, #6d28d9);
@@ -223,7 +223,7 @@
   font-size: 1rem;
   cursor: pointer;
   box-shadow: 0 8px 28px rgba(109,40,217,0.4), 0 0 0 1px rgba(255,255,255,0.08) inset;
-  transition: all 0.22s ease;
+  transition: transform 0.22s ease, opacity 0.22s ease, background-color 0.22s ease, border-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease;
   letter-spacing: 0.02em;
 }
 .login-button:hover:not(:disabled) {

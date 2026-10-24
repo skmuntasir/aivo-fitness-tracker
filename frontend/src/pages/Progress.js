@@ -130,18 +130,19 @@ const CircularScore = ({ score, size = 180, strokeWidth = 14 }) => {
   const color       = score >= 80 ? '#34d399' : score >= 60 ? '#fbbf24' : '#f87171';
   const label       = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score > 0 ? 'Needs Work' : 'No data yet';
 
+  // requestAnimationFrame tween (was a 16ms setInterval doing ~60 React re-renders, with a cleanup that never ran)
   useEffect(() => {
+    let raf = 0;
     const timer = setTimeout(() => {
-      let start = 0;
-      const step = score / 60;
-      const iv = setInterval(() => {
-        start += step;
-        if (start >= score) { setAnimated(score); clearInterval(iv); }
-        else setAnimated(Math.round(start));
-      }, 16);
-      return () => clearInterval(iv);
+      const t0 = performance.now(), dur = 1000;
+      const tick = (now) => {
+        const p = Math.min(1, (now - t0) / dur);
+        setAnimated(p >= 1 ? score : Math.round(score * p));
+        if (p < 1) raf = requestAnimationFrame(tick);
+      };
+      raf = requestAnimationFrame(tick);
     }, 400);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); cancelAnimationFrame(raf); };
   }, [score]);
 
   return (
@@ -177,16 +178,17 @@ const CircularScore = ({ score, size = 180, strokeWidth = 14 }) => {
 const AnimatedNum = ({ value, suffix='', decimals=0 }) => {
   const [disp, setDisp] = useState(0);
   useEffect(() => {
-    let start = 0;
-    const end  = parseFloat(value) || 0;
-    const step = end / 50;
-    if (end === 0) { setDisp(0); return; }
-    const iv = setInterval(() => {
-      start += step;
-      if (start >= end) { setDisp(end); clearInterval(iv); }
-      else setDisp(parseFloat(start.toFixed(decimals)));
-    }, 20);
-    return () => clearInterval(iv);
+    const end = parseFloat(value) || 0;
+    if (end === 0) { setDisp(0); return undefined; }
+    let raf = 0;
+    const t0 = performance.now(), dur = 1000;
+    const tick = (now) => {
+      const p = Math.min(1, (now - t0) / dur);
+      setDisp(p >= 1 ? end : parseFloat((end * p).toFixed(decimals)));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [value, decimals]);
   return <>{decimals > 0 ? disp.toFixed(decimals) : Math.round(disp).toLocaleString()}{suffix}</>;
 };
@@ -195,7 +197,7 @@ const AnimatedNum = ({ value, suffix='', decimals=0 }) => {
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background:'rgba(8,14,32,0.97)', border:'1px solid rgba(255,255,255,0.13)', borderRadius:14, padding:'10px 16px', backdropFilter:'blur(20px)' }}>
+    <div style={{ background:'rgba(8,14,32,0.97)', border:'1px solid rgba(255,255,255,0.13)', borderRadius:14, padding:'10px 16px' }}>
       <p style={{ margin:0, color:'#a8b9ff', fontSize:'0.82rem', marginBottom:6 }}>{label}</p>
       {payload.map((p,i) => (
         <p key={i} style={{ margin:'3px 0', color:p.color, fontSize:'0.9rem', fontWeight:600 }}>

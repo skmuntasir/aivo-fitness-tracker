@@ -11,12 +11,12 @@ const Friends = lazy(() => import('./pages/Friends'));
 const Chat = lazy(() => import('./pages/Chat'));
 const LeaderboardPage = lazy(() => import('./components/LeaderboardPage'));
 import { ChatProvider } from './components/ChatContext';
-import ChatPanel from './components/ChatPanel';
+const ChatPanel = lazy(() => import('./components/ChatPanel'));   // floating widget: not needed for first paint
 import BottomNav from './components/BottomNav';
 const AdminApp = lazy(() => import('./admin/AdminApp'));
 
 // The user-app chat widget must not appear inside the admin console
-const UserChatPanel = () => (useLocation().pathname.startsWith('/admin') ? null : <ChatPanel />);
+const UserChatPanel = () => (useLocation().pathname.startsWith('/admin') ? null : <Suspense fallback={null}><ChatPanel /></Suspense>);
 
 
 // Full-screen notice shown when an admin turned maintenance mode on
@@ -82,7 +82,7 @@ function App() {
     <ChatProvider>
       <Router>
         <div className="App">
-        <Suspense fallback={<div className="route-loading" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', color: '#a8b9ff' }}>Loading…</div>}>
+        <Suspense fallback={<div className="route-loading" aria-busy="true"><span className="route-spinner" /></div>}>
         <Routes>
           <Route path="/admin/*" element={<AdminApp />} />
           <Route path="/" element={

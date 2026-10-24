@@ -1,4 +1,6 @@
-from flask import Flask
+import gzip
+
+from flask import Flask, request
 from flask_cors import CORS
 from .extensions import mongo, jwt, socketio
 from .config import Config
@@ -36,10 +38,34 @@ def ensure_indexes():
                 break  # database unreachable: don't wait for a timeout on every index
 
 
+_COMPRESSIBLE = ('application/json', 'text/')
+
+
+def _gzip(resp):
+    """Gzip JSON/text API responses > 1 KB (typically 5-10x smaller => much faster on mobile).
+    Images, streams, socket.io traffic and already-encoded responses are left alone."""
+    try:
+        if (resp.status_code != 200 or resp.direct_passthrough or 'Content-Encoding' in resp.headers
+                or request.path.startswith('/socket.io')
+                or 'gzip' not in request.headers.get('Accept-Encoding', '').lower()
+                or not (resp.mimetype or '').startswith(_COMPRESSIBLE)):
+            return
+        data = resp.get_data()
+        if len(data) < 1024:
+            return
+        resp.set_data(gzip.compress(data, compresslevel=5))
+        resp.headers['Content-Encoding'] = 'gzip'
+        resp.headers['Content-Length'] = str(len(resp.get_data()))
+        resp.headers.add('Vary', 'Accept-Encoding')
+    except Exception:
+        pass  # never break a response because of compression
+
+
 def create_app():
     Config.validate()
     app = Flask(__name__)
     app.config.from_object(Config)
+    app.json.sort_keys = False   # skip sorting every JSON response (faster, same data)
 
     local_origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:5174"]
     extra = [o.strip() for o in app.config.get("CORS_ORIGIN", "").split(",") if o.strip()]
@@ -73,6 +99,7 @@ def create_app():
     @app.after_request
     def _headers(resp):
         resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        _gzip(resp)
         return resp
 
     @app.route('/api/health')
