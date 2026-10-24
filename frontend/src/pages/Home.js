@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
 import main_logo from './images/aivo_logo.webp';
-import API from '../services/api';
+import API, { cachedGet } from '../services/api';
 import StreakCalendar from '../components/StreakCalendar';
 import NavIcons from '../components/NavIcons';
 import AnnouncementBanner from '../components/AnnouncementBanner';
@@ -107,10 +107,11 @@ const Home = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await API.get('/workouts/daily-summary', { params: { year: new Date().getFullYear(), tz: userTimeZone } });
-        if (cancelled || !res.data.success) return;
+        // Same URL as the streak calendar => one shared request instead of two identical ones
+        const d = await cachedGet(`/workouts/daily-summary?year=${new Date().getFullYear()}&tz=${encodeURIComponent(userTimeZone)}`, { ttl: 0 });
+        if (cancelled || !d.success) return;
         const m = {};
-        (res.data.streak_data || []).forEach((e) => { m[e.date] = e.total_duration; });
+        (d.streak_data || []).forEach((e) => { m[e.date] = e.total_duration; });
         setDayTotals(m);
         writeDash({ ...(readDash() || {}), dayTotals: m });
       } catch { if (!cancelled) setDayTotals((prev) => prev || {}); }

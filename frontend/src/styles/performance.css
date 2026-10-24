@@ -2,27 +2,23 @@
    Goals: smooth scrolling, cheap rendering, no layout jumps, soft page transitions. */
 
 /* ── Scrolling ─────────────────────────────────────────────── */
-html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+/* Native scrolling only. (An earlier version forced `scroll-behavior: smooth` and `touch-action` globally;
+   both can fight the browser's own wheel / trackpad momentum, so they are intentionally NOT set.) */
 body { -webkit-tap-highlight-color: transparent; }
-a, button, [role="button"], input, select, textarea, label { touch-action: manipulation; }
 
-/* Wheel / trackpad scrolling: html, body and #root each had `overflow-x: hidden`, which silently turns
-   every one of them into a scroll container and makes the mouse wheel get "stuck" on them.
-   `clip` hides horizontal overflow WITHOUT creating a scroll container, so the page itself scrolls natively.
-   (Higher specificity so it also beats App.css, which loads later.) Browsers without `clip` keep `hidden`. */
-html, html body, html body #root { overflow-x: clip; overflow-y: visible; }
+/* html, body, #root and every page root had `overflow-x: hidden`, which silently turns each of them into a
+   scroll container (overflow-y becomes `auto`). The wheel/trackpad then "gets stuck" on those nested containers.
+   `clip` hides horizontal overflow WITHOUT creating a scroll container, so only the window scrolls.
+   :root-prefixed so it beats App.css / each page's own stylesheet regardless of load order.
+   Browsers without `clip` support simply keep the previous `hidden`. */
+:root, :root body, :root body #root, :root .App, :root .App > * { overflow-x: clip; }
 
 /* Only real inner scrollers keep their scroll inside (no page jump when you reach their end) */
-.messages-scroll, .modal-box { overscroll-behavior: contain; }
+.messages-scroll { overscroll-behavior: contain; }
 
 /* ── Rendering ─────────────────────────────────────────────── */
-/* Decorative blurred orbs / backgrounds: own GPU layer, painted once, never repainted on scroll */
-.orb, .pg-bg-orb, .home-bg-gradient, .home-bg-orbs, .pg-bg {
-  pointer-events: none;
-  transform: translateZ(0);
-  will-change: transform;
-  backface-visibility: hidden;
-}
+/* Decorative backgrounds never take part in hit-testing / scrolling */
+.orb, .pg-bg-orb, .home-bg-gradient, .home-bg-orbs, .pg-bg { pointer-events: none; }
 
 /* Long lists: the browser skips layout/paint of off-screen items until they near the viewport */
 .comm-post { content-visibility: auto; contain-intrinsic-size: auto 260px; }
@@ -52,7 +48,6 @@ img[loading="lazy"] { content-visibility: auto; }
 
 /* ── Accessibility: respect reduced-motion ─────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
   .App > * { animation: none; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
