@@ -329,3 +329,18 @@
 .header-avatar .convo-dot { width: 10px; height: 10px; border-color: #12162a; }
 .messages-scroll .ui-empty, .convo-list .ui-empty { margin: auto; }
 .header-status .ui-typing-inline { font-size: .72rem; }
+
+/* Floating chat on phones: near-full-screen sheet that respects the on-screen keyboard (dvh) and notches */
+@media (max-width: 480px) {
+  .chat-panel {
+    left: 8px; right: 8px; width: auto;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    height: min(560px, calc(100vh - 16px));
+    border-radius: 18px;
+  }
+}
+@supports (height: 100dvh) {
+  @media (max-width: 480px) {
+    .chat-panel { height: min(560px, calc(100dvh - 16px)); }
+  }
+}

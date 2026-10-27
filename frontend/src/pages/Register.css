@@ -399,3 +399,8 @@ select.form-input option,
   border-radius: 50%;
 }
 .reg-avatar-uploader:hover .reg-avatar-overlay { opacity: 1; }
+
+@media (max-width: 480px) {
+  .register-container { padding: 14px; }
+  .register-card { padding: 20px 14px; }
+}

@@ -667,3 +667,72 @@
   .dash-ring, .dash-ring svg, .dash-ring .sk { width: 112px !important; height: 112px !important; }
   .ring-center b { font-size: 1.6rem; }
 }
+
+/* ═══════════ MOBILE (phones) ═══════════
+   Every action appears exactly once on a phone:
+   - Home / Progress / Community / Friends / Chat / Profile  → bottom tab bar
+   - Notifications + Logout                                  → header (matching 44px buttons)
+   - Start Workout, Calories, Leaderboard                    → action block right under the greeting
+   Desktop is unchanged (the quick tiles are hidden there, the .hide-on-mobile items are shown). */
+.quick-row { display: none; }
+
+@media (max-width: 768px) {
+  /* Header: logo left, two equal round-corner buttons right */
+  .header { position: relative; height: auto; min-height: 64px; padding: 10px 14px; }
+  .header-content { flex-wrap: nowrap; gap: 10px; }
+  .home-container .main-logo { height: 44px !important; width: 44px !important; }
+  .header .nav-icons-wrapper { position: static; margin-left: auto; padding: 0; gap: 0; background: none; border: 0; }
+  .header .nav-buttons { padding: 0; gap: 0; background: none; border: 0; border-radius: 0; display: flex; }
+  .header .nav-icon-btn,
+  .header .nav-button.logout-btn {
+    width: 44px; height: 44px; min-height: 44px; padding: 0; gap: 0; border-radius: 14px; justify-content: center;
+  }
+  .header .nav-icon-btn .ui-icon,
+  .header .nav-button .ui-icon { width: 20px; height: 20px; }
+  .header .nb-label { display: none; }
+  .header .notification-badge { top: 5px; right: 5px; }
+  /* friend-request dropdown: full width under the header instead of hanging off the bell */
+  .header .notification-dropdown { position: absolute; left: 12px; right: 12px; top: calc(100% + 6px); width: auto; }
+
+  /* Greeting first, weekly-goal card after the actions */
+  .hero-visual { order: 0; }
+  .hero-section { padding: 22px 0 34px; gap: 26px; }
+  .hero-text { gap: 16px; }
+
+  /* Action block */
+  .hero-actions { flex-direction: column; flex-wrap: nowrap; gap: 10px; margin-top: 4px; }
+  .cta-primary { width: 100%; min-height: 56px; justify-content: center; border-radius: 18px; }
+  .quick-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .quick-tile {
+    display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; padding: 0 12px;
+    border-radius: 16px; cursor: pointer; font-weight: 700; font-size: 0.92rem; letter-spacing: 0.01em;
+    color: #dbe4ff; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.11);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  }
+  .quick-tile:active { transform: scale(0.98); background: rgba(255, 255, 255, 0.09); }
+  .quick-ic { display: inline-flex; }
+  .quick-tile:nth-child(1) .quick-ic { color: #fbbf24; }
+  .quick-tile:nth-child(2) .quick-ic { color: #a78bfa; }
+}
+
+@media (max-width: 640px) {
+  .main-content { padding: 0 14px 72px; }
+  .hero-badge { font-size: 0.7rem; padding: 6px 12px; white-space: normal; }
+  .hero-title { font-size: clamp(2rem, 9vw, 2.6rem); }
+  .hero-subtitle { font-size: 1rem; }
+  .dash-card { padding: 18px 16px 16px; border-radius: 22px; }
+  .features-section, .streak-section { padding-bottom: 40px; }
+  .section-header { margin-bottom: 28px; }
+  /* Modals: centred on screen, never wider than the phone */
+  .modal-overlay { padding: 12px; align-items: center; }
+  .modal-box { min-width: 0; width: 100%; max-width: 100%; max-height: calc(100vh - 24px); padding: 2rem 1.1rem 1.4rem; border-radius: 22px; }
+  .modal-box.timer-modal { padding: 0; }
+}
+@supports (height: 100dvh) {
+  @media (max-width: 640px) { .modal-box { max-height: calc(100dvh - 24px); } }
+}
+@media (max-width: 380px) {
+  .dash-card .stat-value { font-size: 1.15rem; }
+  .stat-label { font-size: 0.62rem; letter-spacing: 0.03em; }
+  .quick-tile { font-size: 0.85rem; gap: 8px; }
+}

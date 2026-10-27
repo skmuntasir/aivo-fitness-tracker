@@ -117,7 +117,7 @@ function StreakCalendar({ token, refreshKey }) {
   const streak = serverStreak ?? localStreak;   // server value wins; local count is only a fallback
 
   return (
-    <div style={containerStyle}>
+    <div className="sc-card" style={containerStyle}>
       <div style={headerStyle}>
         <div>
           <div style={titleStyle}>
@@ -126,7 +126,7 @@ function StreakCalendar({ token, refreshKey }) {
           </div>
           <div style={subtitleStyle}>{currentYear} workout history</div>
         </div>
-        <div style={statsRowStyle}>
+        <div className="sc-stats" style={statsRowStyle}>
           <div style={statBubble}>
             <span style={statEmoji}>🔥</span>
             <div><div style={statVal}>{streak}</div><div style={statLbl}>Streak</div></div>

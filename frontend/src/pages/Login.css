@@ -268,3 +268,8 @@
 .input-icon { display: inline-flex; align-items: center; }
 .password-toggle { display: inline-flex; align-items: center; justify-content: center; }
 .login-button .login-busy { font-size: 0.95rem; }
+
+@media (max-width: 520px) {
+  .login-container { padding: 14px; align-items: flex-start; padding-top: max(24px, env(safe-area-inset-top, 0px)); }
+}
+@media (max-width: 380px) { .login-card { padding: 24px 16px; } }

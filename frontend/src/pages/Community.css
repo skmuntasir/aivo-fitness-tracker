@@ -154,3 +154,22 @@
 .comm-report input { flex: 1; min-width: 160px; }
 .comm-report-actions { display: flex; gap: 6px; align-items: center; }
 .comm-report-err { color: #fca5a5; width: 100%; }
+
+@media (max-width: 640px) {
+  .community-grid { gap: 14px; }
+  .comm-report { padding: 10px; }
+  .comm-report input { min-width: 0; flex: 1 1 100%; }
+  .comm-report-actions { width: 100%; }
+  .comm-report-actions button { flex: 1; min-height: 40px; }
+  .comm-post { word-break: break-word; overflow-wrap: anywhere; }
+}
+
+/* Single-column layout (phones/small tablets): the sidebar is part of the normal page flow.
+   Sticky only makes sense as a side column on wide screens; stacked it pinned itself over the feed. */
+@media (max-width: 768px) {
+  .comm-sidebar { position: static; top: auto; }
+  /* don't turn the page wrapper into its own scroll container — the whole page scrolls with the window */
+  @supports (overflow: clip) {
+    .community-page { overflow-x: clip; }
+  }
+}

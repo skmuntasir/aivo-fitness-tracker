@@ -29,3 +29,7 @@
   .bottom-nav .bn-item:focus { box-shadow: none; border-color: transparent; }
   .bottom-nav .bn-item:focus-visible { outline: 2px solid var(--accent-light, #a78bfa); outline-offset: -2px; }
 }
+
+@media (max-width: 768px) {
+  body:has(.modal-overlay, .prof-modal-overlay) .bottom-nav { display: none; }
+}

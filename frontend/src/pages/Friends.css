@@ -125,3 +125,10 @@
 .friends-btn-primary.small { display: inline-flex; align-items: center; gap: 6px; }
 .friend-online-text { color: #86efac !important; font-weight: 600; }
 .friend-card .ui-presence { border-color: #12162c; }
+
+@media (max-width: 640px) {
+  .friends-grid { gap: 14px; }
+  .friend-card, .freq-card { flex-wrap: wrap; }
+  .friend-card button, .friends-btn-secondary { min-height: 40px; }
+  .freq-info { min-width: 0; }
+}

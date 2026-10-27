@@ -13,6 +13,7 @@
 .nav-icon-btn {
   width: 36px;
   height: 36px;
+  padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -192,3 +193,5 @@
 
 /* SVG icons inside the round nav buttons */
 .nav-icon-btn .ui-icon { pointer-events: none; }
+
+.nav-icon-btn .ui-icon { flex: none; }

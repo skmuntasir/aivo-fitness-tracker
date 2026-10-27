@@ -22,3 +22,12 @@
 /* first-ever load (no cached data yet): subtle pulse instead of a dead, empty grid */
 .sc-loading .sc-l0 { animation: scPulse 1.2s ease-in-out infinite; }
 @keyframes scPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+/* Mobile: tighter card, three stat bubbles share one row; the heatmap itself scrolls sideways inside .sc-scroll */
+@media (max-width: 560px) {
+  .sc-card { padding: 18px 14px 16px !important; border-radius: 22px !important; }
+  .sc-stats { width: 100%; display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; }
+  .sc-stats > div { padding: 8px 8px !important; gap: 6px !important; min-width: 0; }
+  .sc-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding-bottom: 10px; }
+  .sc-cell[data-tip]:hover::after { display: none; } /* hover tooltips overflow the screen on touch */
+}

@@ -303,3 +303,14 @@
   .ac-wrap { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
   .ac-panel { height: min(540px, calc(100vh - 190px)); max-height: calc(100vh - 190px); }
 }
+
+@media (max-width: 480px) {
+  .ac-fab { width: 56px; height: 56px; }
+  .ac-wrap { right: 12px; }
+  .ac-panel { width: calc(100vw - 24px); }
+}
+@supports (height: 100dvh) {
+  @media (max-width: 768px) {
+    .ac-panel { height: min(540px, calc(100dvh - 190px)); max-height: calc(100dvh - 190px); }
+  }
+}

@@ -135,3 +135,11 @@
   .lb-content { padding: 12px 16px 60px; }
   .lb-table th, .lb-table td { padding: 12px 14px; }
 }
+
+@media (max-width: 600px) {
+  .lb-table th, .lb-table td { padding: 10px 8px; font-size: 0.9rem; }
+  .rank-cell { width: 40px; font-size: 1.1rem; }
+  .points-cell { font-size: 0.95rem; }
+  .name-cell { word-break: break-word; }
+  .lb-table-card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

@@ -251,3 +251,26 @@ select.prof-form-input option {
 
 /* Kill grid pattern completely */
 .pg-bg, .pg-bg-grid, .pg-bg-orb, .pg-orb1, .pg-orb2, .pg-orb3 { display: none !important; }
+
+@media (max-width: 640px) {
+  .profile-content { gap: 16px; }
+  .prof-hero { padding: 20px 16px; }
+  .prof-hero-inner { gap: 18px; margin-bottom: 18px; }
+  .prof-hero-info { min-width: 0; width: 100%; }
+  .prof-hero-actions button { flex: 1 1 140px; min-height: 44px; }
+  .prof-grid { grid-template-columns: 1fr; gap: 16px; }
+  .prof-card { padding: 18px 16px; }
+  .prof-qs-item { min-width: 30%; padding: 8px 4px; }
+  .prof-btn-primary, .prof-btn-secondary, .prof-btn-danger { min-height: 44px; }
+  .prof-modal-overlay { padding: 10px; align-items: center; }
+  .prof-modal { width: 100%; border-radius: 22px; }
+  .prof-modal-header { padding: 16px 18px; }
+  .prof-modal-body { padding: 16px 18px; max-height: 65dvh; }
+  .prof-modal-footer { padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px)); }
+  .prof-modal-footer > button { flex: 1; }
+  .prof-form-input { padding: 12px 14px; }
+}
+@media (max-width: 360px) {
+  .prof-stat-grid, .prof-perf-grid { gap: 8px; }
+  .prof-stat-block, .prof-perf-card { padding: 10px; }
+}

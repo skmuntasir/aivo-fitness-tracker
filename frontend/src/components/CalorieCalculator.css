@@ -108,3 +108,11 @@
   color: #f87171;
   font-size: 0.86rem;
 }
+
+@media (max-width: 480px) {
+  .calc-wrap { padding: 16px; border-radius: 16px; }
+  .calc-row { grid-template-columns: 1fr 1fr; }
+  .calc-goal-btn { min-width: calc(50% - 8px); }
+  .calc-result-value { font-size: 2.2rem; }
+}
+@media (max-width: 340px) { .calc-row { grid-template-columns: 1fr; } }

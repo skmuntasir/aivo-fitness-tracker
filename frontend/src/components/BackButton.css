@@ -49,3 +49,8 @@
 }
 
 .back-btn-floating .ui-icon, .return-home-btn-floating .ui-icon { margin-top: -1px; }
+
+@media (max-width: 480px) {
+  .nav-buttons-floating { height: 52px; padding: 0 12px; }
+  .back-btn-floating, .return-home-btn-floating { padding: 8px 14px; min-height: 40px; }
+}

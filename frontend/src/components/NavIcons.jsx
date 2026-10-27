@@ -30,9 +30,9 @@ const NavIcons = () => {
 
   return (
     <div className="nav-icons-wrapper" ref={ref}>
-      <button className="nav-icon-btn" onClick={() => navigate('/friends')} aria-label="Friends"><Icon name="users" size={18} /></button>
+      <button className="nav-icon-btn hide-on-mobile" onClick={() => navigate('/friends')} aria-label="Friends"><Icon name="users" size={18} /></button>
 
-      <button className="nav-icon-btn chat-toggle-btn" onClick={() => openChat()} aria-label="Chat">
+      <button className="nav-icon-btn chat-toggle-btn hide-on-mobile" onClick={() => openChat()} aria-label="Chat">
         <Icon name="message" size={18} />
         {totalUnread > 0 && (
           <span className="notification-badge msg-badge">{totalUnread > 9 ? '9+' : totalUnread}</span>

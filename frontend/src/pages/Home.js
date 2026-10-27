@@ -189,22 +189,23 @@ const Home = () => {
           </div>
           <NavIcons />
           <div className="nav-buttons">
-            <button className="nav-button calorie-btn" onClick={() => setShowCalorieCalculator(true)} onPointerEnter={loadCalorie}>
+            <button className="nav-button calorie-btn hide-on-mobile" onClick={() => setShowCalorieCalculator(true)} onPointerEnter={loadCalorie}>
               <Icon name="calculator" size={16} /> Calories
             </button>
-            <button className="nav-button leaderboard-btn" onClick={() => navigate('/leaderboard')}>
+            <button className="nav-button leaderboard-btn hide-on-mobile" onClick={() => navigate('/leaderboard')}>
               <Icon name="trophy" size={16} /> Leaderboard
             </button>
-            <button className="nav-button profile-btn" onClick={() => navigate('/profile')}>
+            <button className="nav-button profile-btn hide-on-mobile" onClick={() => navigate('/profile')}>
               <Icon name="user" size={16} /> Profile
             </button>
             <button
               className={`nav-button logout-btn ${isLoggingOut ? 'loading' : ''}`}
               onClick={handleLogout}
               disabled={isLoggingOut}
+              aria-label="Logout"
             >
               <Icon name="logout" size={16} />
-              {isLoggingOut ? 'Logging out…' : 'Logout'}
+              <span className="nb-label">{isLoggingOut ? 'Logging out…' : 'Logout'}</span>
             </button>
           </div>
         </div>
@@ -230,11 +231,21 @@ const Home = () => {
                 <span className="cta-icon"><Icon name="play" size={16} /></span>
                 Start Workout
               </button>
-              <button className="cta-secondary" onClick={() => navigate('/progress')}>
+              <div className="quick-row">
+                <button type="button" className="quick-tile" onClick={() => setShowCalorieCalculator(true)} onPointerEnter={loadCalorie}>
+                  <span className="quick-ic"><Icon name="calculator" size={20} /></span>
+                  <span className="quick-tx">Calories</span>
+                </button>
+                <button type="button" className="quick-tile" onClick={() => navigate('/leaderboard')}>
+                  <span className="quick-ic"><Icon name="trophy" size={20} /></span>
+                  <span className="quick-tx">Leaderboard</span>
+                </button>
+              </div>
+              <button className="cta-secondary hide-on-mobile" onClick={() => navigate('/progress')}>
                 <span className="cta-icon"><Icon name="progress" size={16} /></span>
                 View Progress
               </button>
-              <button className="cta-secondary" onClick={() => navigate('/community')}
+              <button className="cta-secondary hide-on-mobile" onClick={() => navigate('/community')}
                 onMouseEnter={warmCommunity} onTouchStart={warmCommunity} onFocus={warmCommunity}>
                 <span className="cta-icon"><Icon name="users" size={16} /></span>
                 Community

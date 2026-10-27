@@ -143,3 +143,25 @@ button.nav-secondary:hover {
     padding: 12px 16px;
   }
 }
+
+/* ═══ Mobile polish (global) ═══ */
+/* iOS Safari zooms the page when a focused field is < 16px; keep fields at 16px on touch screens.
+   :root body … beats the page-level classes that set smaller sizes. */
+@media (max-width: 768px) {
+  :root body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  :root body select,
+  :root body textarea { font-size: 16px; }
+  /* comfortable tap targets */
+  :root body .modal-close { width: 40px; height: 40px; }
+  /* never let a stray wide element cause sideways page scroll */
+  :root body img, :root body svg, :root body video { max-width: 100%; }
+  .page-shell { padding-top: 80px; }
+  /* items that already live in the bottom tab bar are not drawn a second time on phones */
+  :root body .hide-on-mobile { display: none !important; }
+}
+/* Safe-area padding for notched phones (viewport-fit=cover is already set) */
+@supports (padding: max(0px)) {
+  @media (max-width: 768px) {
+    .nav-buttons-floating { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+  }
+}
