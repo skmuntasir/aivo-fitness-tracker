@@ -34,7 +34,9 @@ img[loading="lazy"] { content-visibility: auto; }
 
 /* ── Page transitions ─────────────────────────────────────── */
 /* Every page root is a direct child of .App; fade it in softly (opacity only, so fixed children are unaffected) */
-.App > * { animation: aivoRouteIn .22s ease-out both; }
+.App > * { animation: aivoRouteIn .22s ease-out; }
+/* (No fill-mode: with `both`/`forwards` the finished animation keeps the WHOLE page promoted to one giant
+   composited layer for as long as the page is open — a big memory cost on iPhones. The fade looks identical.) */
 @keyframes aivoRouteIn { from { opacity: 0; } to { opacity: 1; } }
 
 .route-loading { min-height: 100vh; display: grid; place-items: center; animation: none !important; }
@@ -50,4 +52,18 @@ img[loading="lazy"] { content-visibility: auto; }
 @media (prefers-reduced-motion: reduce) {
   .App > * { animation: none; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+/* ── Phones: cheaper backgrounds (iOS WebKit crashes a tab that holds too much GPU memory) ───────────────
+   The glowing orbs are already radial gradients that fade to transparent, so the extra blur(80-90px) on
+   400-600px circles adds almost nothing visually — but each one costs a large offscreen layer. The slow
+   floating animation on the Progress orbs forced those layers to be re-rendered continuously. */
+@media (max-width: 768px) {
+  :root .orb,
+  :root .pg-bg-orb,
+  :root .login-container::before, :root .login-container::after,
+  :root .register-container::before, :root .register-container::after { filter: none; }
+  :root .pg-bg-orb { animation: none; }
+  /* full-screen frosted overlays behind modals: a plain dim is far cheaper than blurring the whole page */
+  :root .modal-overlay, :root .prof-modal-overlay { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: rgba(3, 6, 18, 0.82); }
 }
