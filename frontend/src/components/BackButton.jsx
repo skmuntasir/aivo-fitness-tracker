@@ -9,10 +9,10 @@ const BackButton = () => {
   return (
     <div className="nav-buttons-floating">
       <button className="back-btn-floating" onClick={() => navigate(-1)} aria-label="Back">
-        <Icon name="arrowLeft" size={15} /> Back
+        <Icon name="arrowLeft" size={16} /> Back
       </button>
       <button className="return-home-btn-floating" onClick={() => navigate('/home')} aria-label="Return Home">
-        <Icon name="home" size={15} /> Return Home
+        <Icon name="home" size={16} /> Home
       </button>
     </div>
   );

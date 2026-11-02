@@ -1,73 +1,30 @@
-/* In-app dialogs & toasts (replace native alert/confirm). Dark navy + violet to match the user app. */
-.fb-overlay {
-  position: fixed; inset: 0; z-index: 10000; display: grid; place-items: center; padding: 20px;
-  background: rgba(3, 6, 18, 0.72); backdrop-filter: blur(6px);
-  animation: fbFade .16s ease-out;
-}
-.fb-dialog {
-  width: 100%; max-width: 410px; padding: 28px 26px 22px; text-align: center; border-radius: 24px;
-  background: rgba(12, 17, 40, 0.97); border: 1px solid rgba(139, 92, 246, 0.25);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-  font-family: 'Inter', 'Segoe UI', sans-serif; color: #eaf0ff;
-  animation: fbPop .22s cubic-bezier(.22, 1, .36, 1);
-}
-.fb-dialog.danger { border-color: rgba(248, 113, 113, 0.3); }
-.fb-dialog-icon {
-  width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 24px; font-weight: 800; color: #c4b5fd; background: rgba(139, 92, 246, 0.16); border: 1px solid rgba(139, 92, 246, 0.35);
-}
-.fb-dialog-icon.danger { color: #fca5a5; background: rgba(239, 68, 68, 0.14); border-color: rgba(239, 68, 68, 0.35); }
-.fb-dialog h3 { margin: 0 0 8px; font-size: 1.15rem; font-weight: 700; color: #fff; }
-.fb-dialog-msg { margin: 0 0 4px; color: rgba(200, 214, 255, 0.75); font-size: .92rem; line-height: 1.55; word-break: break-word; }
+/* Toasts + confirm / choice dialogs */
+.fb-toasts { position: fixed; z-index: 3000; left: 50%; bottom: 24px; transform: translateX(-50%); display: grid; gap: 8px; width: min(420px, calc(100vw - 24px)); pointer-events: none; }
+@media (max-width: 899px) { .fb-toasts { bottom: calc(var(--bar-h) + env(safe-area-inset-bottom, 0px) + 14px); } }
+.fb-toast { pointer-events: auto; display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 14px; border-radius: var(--r-md); background: var(--raised); border: 1px solid var(--line-strong); box-shadow: var(--shadow-pop); animation: riseIn 0.22s var(--ease); }
+.fb-toast-icon { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--info); }
+.fb-toast.success .fb-toast-icon { background: var(--go-soft); color: var(--go); }
+.fb-toast.error .fb-toast-icon { background: var(--alert-soft); color: var(--alert); }
+.fb-toast-text { flex: 1; font-size: 0.92rem; line-height: 1.4; }
+.fb-toast-x { flex: none; width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--faint); }
+.fb-toast-x:hover { background: var(--hover); color: var(--text); }
 
-.fb-typed { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; text-align: left; font-size: .85rem; color: rgba(200, 214, 255, 0.8); }
-.fb-typed b { color: #fca5a5; letter-spacing: .06em; }
-.fb-overlay .fb-typed input {
-  width: 100%; padding: 11px 14px; border-radius: 12px; font-size: .95rem; color: #eaf0ff;
-  background: rgba(139, 92, 246, 0.07); border: 1px solid rgba(139, 92, 246, 0.25);
-}
-.fb-overlay .fb-typed input:focus { border-color: rgba(139, 92, 246, 0.6); box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15); }
-
+.fb-overlay { position: fixed; inset: 0; z-index: 2900; display: grid; place-items: center; padding: 20px; background: rgba(5, 7, 12, 0.72); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: fadeIn 0.15s ease-out; }
+.fb-dialog { width: min(100%, 400px); padding: 26px 22px 20px; text-align: center; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-xl); box-shadow: var(--shadow-pop); animation: popIn 0.2s var(--ease); }
+.fb-dialog-icon { width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 16px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-text); }
+.fb-dialog-icon.danger { background: var(--alert-soft); color: var(--alert); }
+.fb-dialog h3 { font-size: 1.2rem; }
+.fb-dialog-msg { margin-top: 8px; color: var(--muted); font-size: 0.93rem; line-height: 1.55; }
+.fb-typed { display: grid; gap: 8px; margin-top: 16px; text-align: left; font-size: 0.86rem; color: var(--muted); }
+.fb-typed b { color: var(--text); }
 .fb-dialog-actions { display: flex; gap: 10px; margin-top: 22px; }
-.fb-overlay button.fb-btn {
-  flex: 1; padding: 12px 16px; border-radius: 14px; font-size: .95rem; font-weight: 700; cursor: pointer; border: 1px solid transparent;
-  transition: transform .15s, box-shadow .15s, background .15s; line-height: 1.2;
-}
-.fb-overlay button.fb-btn.ghost { background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.12); color: #cbd5f5; }
-.fb-overlay button.fb-btn.ghost:hover { background: rgba(255, 255, 255, 0.1); }
-.fb-overlay button.fb-btn.default { color: #fff; background: linear-gradient(135deg, #7c3aed, #5b21b6); box-shadow: 0 8px 24px rgba(109, 40, 217, 0.4); }
-.fb-overlay button.fb-btn.danger { color: #fff; background: linear-gradient(135deg, #ef4444, #b91c1c); box-shadow: 0 8px 24px rgba(220, 38, 38, 0.35); }
-.fb-overlay button.fb-btn.default:hover:not(:disabled),
-.fb-overlay button.fb-btn.danger:hover:not(:disabled) { transform: translateY(-1px); }
-.fb-overlay button.fb-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
-.fb-overlay button.fb-btn:focus-visible { outline: 2px solid #a78bfa; outline-offset: 2px; }
-
-/* Toasts */
-.fb-toasts { position: fixed; top: 18px; right: 18px; z-index: 10001; display: flex; flex-direction: column; gap: 10px; width: min(380px, calc(100vw - 36px)); pointer-events: none; }
-.fb-toast {
-  pointer-events: auto; display: flex; align-items: flex-start; gap: 12px; padding: 13px 14px; border-radius: 16px;
-  background: rgba(12, 17, 40, 0.97); border: 1px solid rgba(139, 92, 246, 0.3); color: #eaf0ff;
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5); font: 500 .9rem/1.45 'Inter', 'Segoe UI', sans-serif;
-  animation: fbSlide .25s cubic-bezier(.22, 1, .36, 1);
-}
-.fb-toast.success { border-color: rgba(52, 211, 153, 0.4); }
-.fb-toast.error { border-color: rgba(248, 113, 113, 0.45); }
-.fb-toast-icon { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; background: rgba(139, 92, 246, 0.25); color: #c4b5fd; }
-.fb-toast.success .fb-toast-icon { background: rgba(52, 211, 153, 0.2); color: #6ee7b7; }
-.fb-toast.error .fb-toast-icon { background: rgba(248, 113, 113, 0.2); color: #fca5a5; }
-.fb-toast-text { flex: 1; word-break: break-word; }
-.fb-toasts button.fb-toast-x { flex: none; width: auto; height: auto; min-height: 0; padding: 0 4px; border: 0; background: none; box-shadow: none; color: rgba(200, 214, 255, 0.55); font-size: 18px; line-height: 1; cursor: pointer; }
-.fb-toasts button.fb-toast-x:hover { color: #fff; background: none; box-shadow: none; }
-
-@keyframes fbFade { from { opacity: 0; } to { opacity: 1; } }
-@keyframes fbPop { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
-@keyframes fbSlide { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
-@media (max-width: 520px) {
-  .fb-toasts { top: 10px; right: 10px; left: 10px; width: auto; }
-  .fb-dialog-actions { flex-direction: column-reverse; }
-}
-
-/* multi-option dialog (e.g. workout timer close) */
+.fb-dialog-actions > * { flex: 1; }
 .fb-dialog-actions.stack { flex-direction: column; }
-.fb-overlay button.fb-btn.success { color: #fff; background: linear-gradient(135deg, #10b981, #047857); box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3); }
-.fb-overlay button.fb-btn.success:hover:not(:disabled) { transform: translateY(-1px); }
+.fb-btn { min-height: 44px; padding: 0 16px; border-radius: var(--r-md); font-weight: 650; font-size: 0.93rem; border: 1px solid transparent; transition: background-color 0.15s, opacity 0.15s; }
+.fb-btn.ghost { background: var(--raised); color: var(--text); border-color: var(--line-strong); }
+.fb-btn.ghost:hover { background: var(--hover); }
+.fb-btn.default, .fb-btn.success { background: var(--brand-grad); color: var(--on-brand); }
+.fb-btn.default:hover:not(:disabled), .fb-btn.success:hover { background: var(--brand-grad-hi); }
+.fb-btn.danger { background: var(--alert); color: #fff; }
+.fb-btn.danger:hover:not(:disabled) { filter: brightness(1.1); }
+.fb-btn:disabled { opacity: 0.45; }

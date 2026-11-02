@@ -1,33 +1,30 @@
-.sc-scroll { overflow-x: auto; padding: 8px 0 6px; }
-.sc-cell {
-  width: 12px; height: 12px; border-radius: 3px; position: relative; flex-shrink: 0;
-  border: 1px solid rgba(167, 139, 250, 0.25);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+.sc-scroll { overflow-x: auto; padding: 4px 0 2px; }
+.sc-cell { width: 12px; height: 12px; border-radius: 4px; position: relative; flex-shrink: 0; transition: transform 0.12s ease; }
+.sc-out { background: transparent; }
+.sc-l0 { background: rgba(255, 255, 255, 0.06); }
+.sc-l1, .sc-l2, .sc-l3, .sc-l4, .sc-l5 { box-shadow: inset 0 0 0 1px var(--ring), inset 0 1px 0 rgba(255, 255, 255, 0.30), 0 0 7px 0 var(--glow); }
+.sc-l1 { background: var(--h1); --glow: var(--h1-glow); --ring: var(--h1-ring); }
+.sc-l2 { background: var(--h2); --glow: var(--h2-glow); --ring: var(--h2-ring); }
+.sc-l3 { background: var(--h3); --glow: var(--h3-glow); --ring: var(--h3-ring); }
+.sc-l4 { background: var(--h4); --glow: var(--h4-glow); --ring: var(--h4-ring); }
+.sc-l5 { background: var(--h5); --glow: var(--h5-glow); box-shadow: inset 0 0 0 1px var(--h5-ring), inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 0 11px 2px var(--h5-glow); animation: scGlow 2.4s ease-in-out infinite; }
+@keyframes scGlow { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.12); } }
+.sc-frozen { background: repeating-linear-gradient(135deg, rgba(96, 165, 250, 0.55) 0 2px, rgba(96, 165, 250, 0.18) 2px 4px); box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.55); }
+.sc-legend-frozen { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; color: var(--faint); font-size: 0.72rem; font-weight: 600; }
+.sc-today { outline: 1.5px solid var(--brand-hi); outline-offset: 1px; }
+.sc-cell[data-tip]:hover { transform: scale(1.35); z-index: 5; }
+.sc-tip {
+  position: fixed; z-index: 10000; pointer-events: none; white-space: nowrap;
+  background: var(--raised); color: var(--text); font-size: 0.78rem; font-weight: 600;
+  border: 1px solid var(--line-strong); border-radius: 10px; padding: 6px 12px; box-shadow: var(--shadow-pop);
 }
-.sc-out { background: transparent; border-color: transparent; }
-.sc-l0 { background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.04); }
-.sc-l1 { background: rgba(99, 102, 241, 0.3); }
-.sc-l2 { background: rgba(99, 102, 241, 0.55); }
-.sc-l3 { background: rgba(139, 92, 246, 0.7); }
-.sc-l4 { background: rgba(167, 139, 250, 0.85); }
-.sc-l5 { background: #a78bfa; }
-.sc-cell[data-tip]:hover { transform: scale(1.4); z-index: 5; box-shadow: 0 0 10px rgba(167, 139, 250, 0.6); }
-.sc-cell[data-tip]:hover::after {
-  content: attr(data-tip); position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  background: rgba(8, 10, 24, 0.97); color: #eef4ff; font-size: 0.72rem; white-space: nowrap;
-  border: 1px solid rgba(167, 139, 250, 0.35); border-radius: 8px; padding: 5px 10px; pointer-events: none;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-}
-.sc-legend { border-color: rgba(167, 139, 250, 0.2); }
-/* first-ever load (no cached data yet): subtle pulse instead of a dead, empty grid */
 .sc-loading .sc-l0 { animation: scPulse 1.2s ease-in-out infinite; }
 @keyframes scPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 
-/* Mobile: tighter card, three stat bubbles share one row; the heatmap itself scrolls sideways inside .sc-scroll */
 @media (max-width: 560px) {
-  .sc-card { padding: 18px 14px 16px !important; border-radius: 22px !important; }
+  .sc-card { padding: 18px 14px 14px !important; }
   .sc-stats { width: 100%; display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px !important; }
-  .sc-stats > div { padding: 8px 8px !important; gap: 6px !important; min-width: 0; }
+  .sc-stats > div { padding: 8px !important; gap: 8px !important; min-width: 0; }
   .sc-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; padding-bottom: 10px; }
-  .sc-cell[data-tip]:hover::after { display: none; } /* hover tooltips overflow the screen on touch */
+  .sc-tip { display: none; }
 }

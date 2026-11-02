@@ -29,12 +29,12 @@ function MaintenanceNotice() {
   }, []);
   if (!msg || window.location.pathname.startsWith('/admin')) return null;
   return (
-    <div role="alert" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'grid', placeItems: 'center', padding: 24, background: 'rgba(5,8,22,0.96)', color: '#e8efff', textAlign: 'center' }}>
+    <div role="alert" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'grid', placeItems: 'center', padding: 24, background: 'rgba(7,10,23,0.97)', color: 'var(--text)', textAlign: 'center' }}>
       <div style={{ maxWidth: 440 }}>
-        <div style={{ fontSize: 56 }}>🛠️</div>
+        
         <h2 style={{ margin: '12px 0 8px' }}>We’ll be right back</h2>
-        <p style={{ color: '#9bb4da', lineHeight: 1.6 }}>{msg}</p>
-        <button onClick={() => window.location.reload()} style={{ marginTop: 16, background: 'linear-gradient(135deg,#3b82f6,#2563eb)', border: 'none', color: '#fff', cursor: 'pointer' }}>Try again</button>
+        <p style={{ color: 'var(--muted)', lineHeight: 1.6 }}>{msg}</p>
+        <button onClick={() => window.location.reload()} style={{ marginTop: 16, background: 'var(--brand)', border: 'none', color: 'var(--on-brand)', cursor: 'pointer', padding: '12px 22px', borderRadius: 14, fontWeight: 700 }}>Try again</button>
       </div>
     </div>
   );

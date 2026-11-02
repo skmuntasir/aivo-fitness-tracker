@@ -48,8 +48,8 @@ export default function WorkoutsPage() {
           <div className="a-chart sm"><ResponsiveContainer><BarChart data={s.by_activity}>
             <CartesianGrid strokeDasharray="3 3" stroke="#94a3b822" vertical={false} />
             <XAxis dataKey="activity" tick={{ fontSize: 11, fill: '#94a3b8' }} /><YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} width={32} />
-            <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
-            <Bar dataKey="count" name="Sessions" fill="#6366f1" radius={[4, 4, 0, 0]} />
+            <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12 }} />
+            <Bar dataKey="count" name="Sessions" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
           </BarChart></ResponsiveContainer></div>
         </Card>
       )}

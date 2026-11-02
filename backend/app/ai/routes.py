@@ -1,4 +1,5 @@
-from flask import Blueprint, request, jsonify
+import json
+from flask import Blueprint, request, jsonify, Response, stream_with_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson import ObjectId
 import requests as http_requests
@@ -106,7 +107,12 @@ def build_system_prompt(profile):
         "- You have full access to " + first_name + "'s data. Answer directly from it.\n"
         "- Be warm and encouraging. Use " + first_name + "'s name naturally.\n"
         "- Give specific advice based on their level (" + str(level) + ") and goals (" + goals_str + ").\n"
-        "- Use bullet points for lists. Keep answers concise.\n"
+        "- Keep answers concise and well organised.\n"
+        "- FORMAT (the app renders Markdown): short intro line, then '## ' headings for sections, "
+        "'- ' bullets for lists, '1. ' for ordered steps, **bold** for key terms. Never wrap everything in one paragraph.\n"
+        "- For a weekly workout or meal plan use one '## Day' heading per day (for example '## Monday: Upper body') "
+        "with a bullet per exercise or meal (for example '- Bench Press: 3 x 12'). Do NOT use tables or '---' lines.\n"
+        "- End plans with one short tip line.\n"
         "- You are FitAI, not Llama or any other AI.\n"
         "- Use light emojis occasionally (💪 🔥 ✅).\n"
     )
@@ -192,6 +198,95 @@ def ai_chat():
         return jsonify({"success": False, "message": "AI error: " + str(e)}), 200
  
  
+def _sse(obj):
+    return "data: " + json.dumps(obj, ensure_ascii=False) + "\n\n"
+
+
+@ai_bp.route("/chat/stream", methods=["POST"])
+@jwt_required()
+@rate_limit("ai_chat", 20, 60)
+def ai_chat_stream():
+    """Same conversation as /chat, but the reply is sent token-by-token (Server-Sent Events) so the
+    app can show it as it is being written. Problems found *before* streaming starts (AI off, no key,
+    bad input) come back as ordinary JSON so the client can show them or fall back to /chat."""
+    if not get_settings()['ai_enabled']:
+        return jsonify({"success": False, "message": "The AI coach is temporarily unavailable. Please try again later."}), 200
+    api_key = get_api_key()
+    if not api_key:
+        return jsonify({"success": False,
+                        "message": "⚠️ AI not configured. Please add GROQ_API_KEY to backend/.env and restart the server."}), 200
+
+    user_id = get_jwt_identity()
+    data = request.get_json(silent=True) or {}
+    messages = data.get("messages", [])
+    if not isinstance(messages, list) or not messages:
+        return jsonify({"success": False, "message": "No messages provided"}), 400
+    messages = messages[-20:]
+
+    from app import mongo
+    system_prompt = build_system_prompt(get_user_profile(mongo, user_id))
+    groq_messages = [{"role": "system", "content": system_prompt}]
+    for msg in messages:
+        role = msg.get("role", "user")
+        groq_messages.append({"role": "assistant" if role == "assistant" else "user",
+                              "content": str(msg.get("content", ""))[:2000]})
+
+    payload = {"model": GROQ_MODEL, "messages": groq_messages, "max_tokens": 1024,
+               "temperature": 0.7, "stream": True}
+
+    def generate():
+        got_text = False
+        yield ": stream-open\n\n"   # flush the headers right away so proxies start relaying
+        try:
+            with http_requests.post(
+                GROQ_API_URL,
+                headers={"Content-Type": "application/json", "Authorization": "Bearer " + api_key},
+                json=payload, timeout=(10, 60), stream=True,
+            ) as resp:
+                if resp.status_code != 200:
+                    try:
+                        err = resp.json().get("error", {}).get("message", "")
+                    except Exception:
+                        err = ""
+                    print("[Groq STREAM ERROR] status={} {}".format(resp.status_code, err))
+                    yield _sse({"error": "AI error: " + (err or "Groq API error (status {})".format(resp.status_code))})
+                    return
+                resp.encoding = "utf-8"   # SSE is UTF-8; without this iter_lines would yield bytes
+                for line in resp.iter_lines(decode_unicode=True):
+                    if not line or not line.startswith("data:"):
+                        continue
+                    chunk = line[5:].strip()
+                    if chunk == "[DONE]":
+                        break
+                    try:
+                        delta = (json.loads(chunk).get("choices") or [{}])[0].get("delta") or {}
+                    except ValueError:
+                        continue
+                    piece = delta.get("content")
+                    if piece:
+                        got_text = True
+                        yield _sse({"t": piece})
+        except http_requests.Timeout:
+            yield _sse({"error": "AI request timed out. Please try again."})
+            return
+        except GeneratorExit:      # the browser stopped / navigated away
+            return
+        except Exception as e:
+            yield _sse({"error": "AI error: " + str(e)})
+            return
+        if not got_text:
+            yield _sse({"error": "Empty response from AI"})
+            return
+        try:   # usage tracking for the admin dashboard
+            mongo.db.ai_usage.insert_one({"user_id": str(user_id), "ts": utcnow()})
+        except Exception:
+            pass
+        yield _sse({"done": True})
+
+    return Response(stream_with_context(generate()), mimetype="text/event-stream", headers={
+        "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", "Connection": "keep-alive"})
+
+
 @ai_bp.route("/profile", methods=["GET"])
 @jwt_required()
 def get_profile_summary():

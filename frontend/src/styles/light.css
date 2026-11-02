@@ -1,0 +1,108 @@
+/* ═══════════════════════════════════════════════════════════════
+   Light theme for the MEMBER app. Applied when <html data-theme="light"> (toggle in the sidebar,
+   Home header, Profile > Appearance and on the sign-in pages). Dark stays the default.
+   Only tokens and the few hard-coded dark values are overridden; nothing else changes.
+   ═══════════════════════════════════════════════════════════════ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --graphite-950: #ffffff;
+  --graphite-900: #f3f4fa;
+  --graphite-850: #ffffff;
+  --graphite-800: #eef0f8;
+  --graphite-700: #e6e9f5;
+  --graphite-600: #d5d9ec;
+  --charcoal-900: #ffffff;
+  --charcoal-800: #f6f7fc;
+  --charcoal-700: #e9ecf7;
+  --charcoal-600: #d9ddef;
+
+  --bg: #f3f4fa;
+  --surface: #ffffff;
+  --raised: #eef0f8;
+  --hover: #e4e7f4;
+  --line: #e1e4f0;
+  --line-strong: #c9cee4;
+  --nav-bg: linear-gradient(180deg, #ffffff 0%, #f8f7ff 60%, #f1eefd 100%);
+  --panel-card: linear-gradient(160deg, rgba(139, 92, 246, 0.07) 0%, rgba(139, 92, 246, 0.02) 55%, transparent 100%);
+
+  --text: #15172b;
+  --muted: #4f5679;
+  --faint: #737a9b;
+
+  --brand-text: #6d28d9;
+  --brand-soft: rgba(139, 92, 246, 0.12);
+  --brand-ring: rgba(139, 92, 246, 0.35);
+  --brand-glow: rgba(124, 58, 237, 0.25);
+  --gold: #b45309;
+  --gold-soft: rgba(217, 119, 6, 0.13);
+  --go: #047857;
+  --go-soft: rgba(5, 150, 105, 0.12);
+  --heat: #c2410c;
+  --heat-soft: rgba(234, 88, 12, 0.12);
+  --alert: #dc2626;
+  --alert-soft: rgba(220, 38, 38, 0.1);
+  --info: #2563eb;
+  --ai: #9333ea;
+  --ai-soft: rgba(147, 51, 234, 0.12);
+
+  --shadow-pop: 0 24px 60px rgba(38, 30, 90, 0.22);
+  --shadow-glow: 0 10px 28px rgba(109, 40, 217, 0.2);
+}
+
+:root[data-theme='light'] html, html[data-theme='light'] { background: var(--bg); }
+:root[data-theme='light'] body {
+  background:
+    radial-gradient(1000px 460px at 55% -180px, rgba(139, 92, 246, 0.14), transparent 70%),
+    radial-gradient(700px 480px at 100% 100%, rgba(99, 102, 241, 0.1), transparent 70%),
+    linear-gradient(180deg, #f8f8fd 0%, #f3f4fa 50%, #eeeff8 100%);
+  background-color: var(--bg);
+  background-attachment: fixed;
+}
+:root[data-theme='light'] ::selection { background: rgba(139, 92, 246, 0.25); color: inherit; }
+
+/* surfaces that used white/black alpha (invisible on light) */
+:root[data-theme='light'] .card, :root[data-theme='light'] .glass-panel, :root[data-theme='light'] .glass-card, :root[data-theme='light'] .backdrop-shell {
+  box-shadow: 0 1px 2px rgba(38, 30, 90, 0.05), 0 10px 28px rgba(38, 30, 90, 0.07);
+}
+:root[data-theme='light'] .ring-track { stroke: rgba(60, 60, 120, 0.12); }
+:root[data-theme='light'] .week-dot { background: rgba(60, 60, 120, 0.05); border-color: rgba(60, 60, 120, 0.14); }
+:root[data-theme='light'] .week-day.frozen .week-dot { background: rgba(37, 99, 235, 0.1); border-color: rgba(37, 99, 235, 0.45); }
+:root[data-theme='light'] .an-item:hover { background: rgba(60, 60, 120, 0.06); }
+:root[data-theme='light'] .cp-icon-btn:hover { background: rgba(60, 60, 120, 0.08); }
+:root[data-theme='light'] .sc-l0 { background: rgba(60, 60, 120, 0.09); }
+:root[data-theme='light'] .sk::after { background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent); }
+:root[data-theme='light'] .modal-overlay, :root[data-theme='light'] .prof-modal-overlay, :root[data-theme='light'] .fb-overlay { background: rgba(30, 27, 60, 0.45); }
+:root[data-theme='light'] .modal-box.timer-modal { background: transparent; }
+:root[data-theme='light'] .wt-go { color: #fff; }
+
+/* error / alert text tuned for a light background */
+:root[data-theme='light'] .error-message, :root[data-theme='light'] .comm-post-error, :root[data-theme='light'] .comm-report-err, :root[data-theme='light'] .lb-error { color: #dc2626; }
+:root[data-theme='light'] .auth-alert.error { color: #b91c1c; border-color: rgba(220, 38, 38, 0.35); }
+:root[data-theme='light'] .auth-aside {
+  background: radial-gradient(520px 420px at 20% 15%, rgba(139, 92, 246, 0.16), transparent 70%), radial-gradient(480px 380px at 90% 95%, rgba(99, 102, 241, 0.12), transparent 70%), var(--surface);
+}
+:root[data-theme='light'] .status-dot, :root[data-theme='light'] .ui-presence.offline { background: #9aa1bd; }
+:root[data-theme='light'] .sc-frozen { background: repeating-linear-gradient(135deg, rgba(37, 99, 235, 0.5) 0 2px, rgba(37, 99, 235, 0.15) 2px 4px); box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.5); }
+:root[data-theme='light'] .sf-card { background: rgba(37, 99, 235, 0.07); border-color: rgba(37, 99, 235, 0.25); }
+:root[data-theme='light'] .sf-card.on { background: rgba(37, 99, 235, 0.13); border-color: rgba(37, 99, 235, 0.5); }
+:root[data-theme='light'] .sf-icon { background: rgba(37, 99, 235, 0.13); }
+:root[data-theme='light'] .wt-stage { opacity: 0.4; }
+:root[data-theme='light'] .bd-medal.locked { background: var(--raised); }
+:root[data-theme='light'] .theme-switch-thumb { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }
+
+/* Leaderboard medals keep their own colours; lists stay readable */
+:root[data-theme='light'] .lb-heat { color: var(--heat); }
+
+/* Logo: dark-theme art by default, recoloured copy in light theme */
+img.logo-light { display: none !important; }
+:root[data-theme='light'] img.logo-dark { display: none !important; }
+:root[data-theme='light'] img.logo-light { display: block !important; }
+/* the small sign-in logo above "Welcome back" is for narrow screens only (the two-pane layout already shows the big one) */
+:root[data-theme='light'] img.logo-light.auth-logo-mobile { display: none !important; }
+@media (max-width: 900px) { :root[data-theme='light'] img.logo-light.auth-logo-mobile { display: block !important; } }
+:root[data-theme='light'] .wt-done { background: linear-gradient(135deg, rgba(251, 191, 36, 0.22), rgba(249, 115, 22, 0.12)); border-color: rgba(217, 119, 6, 0.45); }
+:root[data-theme='light'] .wt-pill { background: rgba(217, 119, 6, 0.14); }
+:root[data-theme='light'] .week-day.done .week-dot { border-color: transparent; }
+:root[data-theme='light'] .sc-cell.sc-l1, :root[data-theme='light'] .sc-cell.sc-l2, :root[data-theme='light'] .sc-cell.sc-l3, :root[data-theme='light'] .sc-cell.sc-l4, :root[data-theme='light'] .sc-cell.sc-l5 { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 3px var(--glow); }
+:root[data-theme='light'] .md code { background: rgba(124, 58, 237, 0.1); }

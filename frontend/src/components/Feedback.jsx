@@ -3,6 +3,7 @@
 //   toast('Saved!', 'success');                       // 'success' | 'error' | 'info'
 //   if (await confirm({ title, message, confirmLabel, tone: 'danger', typed: 'DELETE' })) { ... }
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import Icon from './Icon';
 import './Feedback.css';
 
 const FeedbackCtx = createContext({
@@ -12,7 +13,7 @@ const FeedbackCtx = createContext({
 });
 export const useFeedback = () => useContext(FeedbackCtx);
 
-const ICONS = { success: '✓', error: '!', info: 'i', danger: '!', default: '?' };
+const ICONS = { success: 'check', error: 'alert', info: 'info', danger: 'alert', default: 'info' };
 
 export function FeedbackProvider({ children }) {
   const [toasts, setToasts] = useState([]);
@@ -79,9 +80,9 @@ export function FeedbackProvider({ children }) {
       <div className="fb-toasts" role="status" aria-live="polite">
         {toasts.map((t) => (
           <div key={t.id} className={`fb-toast ${t.tone}`}>
-            <span className="fb-toast-icon" aria-hidden="true">{ICONS[t.tone] || ICONS.info}</span>
+            <span className="fb-toast-icon" aria-hidden="true"><Icon name={ICONS[t.tone] || ICONS.info} size={16} strokeWidth={2.4} /></span>
             <span className="fb-toast-text">{t.message}</span>
-            <button type="button" className="fb-toast-x" onClick={() => dismiss(t.id)} aria-label="Dismiss">×</button>
+            <button type="button" className="fb-toast-x" onClick={() => dismiss(t.id)} aria-label="Dismiss"><Icon name="x" size={14} /></button>
           </div>
         ))}
       </div>
@@ -89,7 +90,7 @@ export function FeedbackProvider({ children }) {
       {dialog && (
         <div className="fb-overlay" onMouseDown={(e) => e.target === e.currentTarget && close(dialog.multi ? null : false)}>
           <div className={`fb-dialog ${tone}`} role="alertdialog" aria-modal="true" aria-labelledby="fb-title">
-            <div className={`fb-dialog-icon ${tone}`} aria-hidden="true">{ICONS[tone]}</div>
+            <div className={`fb-dialog-icon ${tone}`} aria-hidden="true"><Icon name={ICONS[tone]} size={24} /></div>
             <h3 id="fb-title">{dialog.title || 'Are you sure?'}</h3>
             {dialog.message && <p className="fb-dialog-msg">{dialog.message}</p>}
             {dialog.typed && (

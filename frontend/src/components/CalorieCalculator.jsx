@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import API from "../services/api";
 import "./CalorieCalculator.css";
+import Icon from './Icon';
 
 function CalorieCalculator({ token, profile = {} }) {
   const [inputs, setInputs] = useState({
@@ -35,18 +36,18 @@ function CalorieCalculator({ token, profile = {} }) {
   };
 
   const goalLabels = {
-    lose: { icon: '📉', label: 'Lose Weight', color: '#34d399' },
-    maintain: { icon: '⚖️', label: 'Maintain Weight', color: '#818cf8' },
-    gain: { icon: '📈', label: 'Gain Weight', color: '#f472b6' },
+    lose: { icon: '', label: 'Lose weight', color: '#38d79f' },
+    maintain: { icon: '', label: 'Maintain', color: '#a78bfa' },
+    gain: { icon: '', label: 'Gain weight', color: '#5cb6ff' },
   };
 
   return (
     <div className="calc-wrap">
       <div className="calc-header">
-        <span className="calc-icon">🔥</span>
+        <span className="calc-icon"><Icon name="calculator" size={22} /></span>
         <div>
-          <div className="calc-title">Calorie Calculator</div>
-          <div className="calc-sub">Calculate your daily intake target</div>
+          <div className="calc-title">Calorie calculator</div>
+          <div className="calc-sub">Find your daily intake target</div>
         </div>
       </div>
 
@@ -76,7 +77,7 @@ function CalorieCalculator({ token, profile = {} }) {
         </div>
 
         <div className="calc-field">
-          <label>Activity Level</label>
+          <label>Activity level</label>
           <select name="activityLevel" value={inputs.activityLevel} onChange={handleChange} className="calc-select">
             <option value="sedentary">Sedentary (little/no exercise)</option>
             <option value="light">Lightly Active (1–3 days/week)</option>
@@ -97,7 +98,6 @@ function CalorieCalculator({ token, profile = {} }) {
                 style={{'--accent': goalLabels[g].color}}
                 onClick={() => { setInputs(p => ({...p, goal: g})); setCalories(null); }}
               >
-                <span>{goalLabels[g].icon}</span>
                 <span>{goalLabels[g].label}</span>
               </button>
             ))}
@@ -105,13 +105,13 @@ function CalorieCalculator({ token, profile = {} }) {
         </div>
 
         <button type="submit" className="calc-submit" disabled={loading}>
-          {loading ? "Calculating…" : "🔥 Calculate My Calories"}
+          {loading ? "Calculating…" : "Calculate my calories"}
         </button>
       </form>
 
       {calories !== null && (
         <div className="calc-result">
-          <div className="calc-result-label">Recommended Daily Intake</div>
+          <div className="calc-result-label">Recommended daily intake</div>
           <div className="calc-result-value">{calories.toLocaleString()}</div>
           <div className="calc-result-unit">calories / day</div>
           <p className="calc-result-hint">
@@ -122,7 +122,7 @@ function CalorieCalculator({ token, profile = {} }) {
         </div>
       )}
 
-      {error && <div className="calc-error">⚠️ {error}</div>}
+      {error && <div className="calc-error" role="alert"><Icon name="alert" size={16} /> {error}</div>}
     </div>
   );
 }

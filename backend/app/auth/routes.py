@@ -7,6 +7,7 @@ from datetime import timedelta, datetime
 from ..extensions import mongo
 from ..utils import iso_utc, utcnow, rate_limit, request_tz, effective_streak
 from ..runtime import get_settings
+from ..demo import ensure_demo_account, ADMIN_ID as DEMO_ADMIN_ID, is_demo, is_demo_email, token_claims, restore_demo_after_admin, restore_if_stale_suspension, DEMO_ADMIN_EMAIL
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -96,6 +97,8 @@ def register():
             errors['email'] = 'Email is required'
         elif not validate_email(email):
             errors['email'] = 'Please enter a valid email address'
+        elif is_demo_email(email):
+            errors['email'] = 'Email already registered'   # reserved for the public demo accounts
         else:
             # Check if email already exists
             existing_user = mongo.db.users.find_one({'email': email})
@@ -220,7 +223,9 @@ def login():
                 'message': 'Password is required'
             }), 400
         
-        # Find user by email
+        # Find user by email (a deleted demo account is quietly brought back first)
+        if is_demo_email(email):
+            ensure_demo_account(email)
         user = mongo.db.users.find_one({'email': email})
         
         if not user:
@@ -229,6 +234,9 @@ def login():
                 'message': 'Invalid email or password'
             }), 401
         
+        if user.get('is_demo'):
+            user = restore_if_stale_suspension(user)
+
         # Check if user is active
         if not user.get('is_active', True):
             return jsonify({
@@ -243,12 +251,28 @@ def login():
                 'message': 'Invalid email or password'
             }), 401
         
-        # Create JWT token
+        # Demo admin signing in: start from a pristine demo world (earlier suspensions / edits are undone)
+        if user.get('is_demo') and email == DEMO_ADMIN_EMAIL:
+            restore_demo_after_admin()
+            user = mongo.db.users.find_one({'_id': user['_id']}) or user
+
+        # Create JWT token (demo sessions carry demo=true, which keeps every request inside the demo sandbox)
         access_token = create_access_token(
             identity=str(user['_id']),
             expires_delta=timedelta(days=7),
-            additional_claims={'tv': int(user.get('token_version', 0) or 0)}
+            additional_claims={'tv': int(user.get('token_version', 0) or 0), **token_claims(user)}
         )
+
+        # The demo admin signs in on this normal page and lands in the (sandboxed) admin console:
+        # hand out an admin-console session as well. Real admins keep using /admin/login.
+        admin_extra = {}
+        if user.get('is_demo') and user.get('is_admin'):
+            from ..admin.guards import admin_public
+            admin_extra = {
+                'admin_token': create_access_token(
+                    identity=str(user['_id']), expires_delta=timedelta(hours=12),
+                    additional_claims={'tv': int(user.get('token_version', 0) or 0), **token_claims(user)}),
+                'admin': admin_public(user)}
 
         mongo.db.users.update_one(
             {'_id': user['_id']},
@@ -267,12 +291,14 @@ def login():
             'success': True,
             'message': 'Login successful!',
             'token': access_token,
+            **admin_extra,
             'user': {
                 'id': str(user['_id']),
                 'email': user['email'],
                 'full_name': user['full_name'],
                 'username': user.get('username') or ''.join([c.lower() for c in user['full_name'] if c.isalnum()]),
                 'is_admin': bool(user.get('is_admin')),
+                'is_demo': bool(user.get('is_demo')),
                 'fitness_level': user.get('fitness_level', ''),
                 'fitness_goals': user.get('fitness_goals', []),
                 'preferred_units': user.get('preferred_units', 'metric'),
@@ -343,8 +369,9 @@ def get_profile():
 @auth_bp.route('/api/auth/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    # In a real application, you might want to blacklist the token
-    # For now, we'll just return a success message
+    # Demo admin leaving: undo everything they did (suspensions, deletions, edits) so the demo is fresh again
+    if is_demo() and get_jwt_identity() == str(DEMO_ADMIN_ID):
+        restore_demo_after_admin()
     return jsonify({
         'success': True,
         'message': 'Logged out successfully'
@@ -516,10 +543,16 @@ def update_profile():
 def delete_account():
     """Permanently delete the authenticated user and all related data."""
     user_id = get_jwt_identity()
+    if is_demo():
+        return jsonify({'success': False, 'message': 'Demo accounts cannot be deleted.'}), 403
 
     try:
         uid_obj = ObjectId(user_id)
         mongo.db.workouts.delete_many({'user_id': user_id})
+        mongo.db.workout_sessions.delete_many({'_id': user_id})
+        mongo.db.streak_freezes.delete_many({'user_id': user_id})
+        mongo.db.saved_plans.delete_many({'user_id': user_id})
+        mongo.db.challenges.delete_many({'$or': [{'challenger': user_id}, {'opponent': user_id}]})
         mongo.db.posts.delete_many({'author': uid_obj})                      # posts use `author` (ObjectId)
         mongo.db.posts.update_many({}, {'$pull': {'likes': uid_obj, 'comments': {'user': user_id}}})
         mongo.db.messages.delete_many({'$or': [{'sender': uid_obj}, {'receiver': uid_obj}]})

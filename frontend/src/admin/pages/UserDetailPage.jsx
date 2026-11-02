@@ -139,8 +139,8 @@ export default function UserDetailPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#94a3b822" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickFormatter={(d) => d.slice(5)} />
               <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{ fontSize: 11, fill: '#94a3b8' }} width={34} />
-              <Tooltip contentStyle={{ borderRadius: 10, fontSize: 12 }} />
-              <Line type="monotone" dataKey="weight" stroke="#6366f1" strokeWidth={2} dot={{ r: 3 }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12 }} />
+              <Line type="monotone" dataKey="weight" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
             </LineChart></ResponsiveContainer></div>
           )}
         </Card>

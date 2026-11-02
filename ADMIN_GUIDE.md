@@ -42,3 +42,9 @@ Without them the Email button explains that email isn't configured.
 
 ## Tests
 `pip install mongomock pytest && cd backend && python tests_admin.py` – runs ~150 checks of the admin API against an in-memory database.
+
+
+## Demo admin (sandbox)
+`admin@gmail.com` / `Admin@123` opens a sandboxed copy of this console. It only lists the demo members, and nothing it
+does (suspend, delete, role changes, settings, announcements, points, exports…) can reach real data or real members.
+Emails are simulated. Everything is restored when the demo admin signs out.

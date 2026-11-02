@@ -2,19 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=2" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=2" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=2" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Aivo — Intelligent Fitness. Limitless You." />
-    <meta name="theme-color" content="#0b1020" />
+    <meta name="theme-color" content="#070a17" />
+    <script>try{if(localStorage.getItem("aivo_theme")==="light"){document.documentElement.setAttribute("data-theme","light");document.querySelector('meta[name="theme-color"]').setAttribute("content","#f3f4fa");}}catch(e){}</script>
     <title>Aivo</title>
     <!-- Critical CSS: paint the dark app background + a tiny loader instantly, before any JS/CSS arrives.
          Removes the white flash and gives the page something to show while the bundle downloads. -->
     <style>
-      html, body { margin: 0; background: #050816; color-scheme: dark; }
+      html, body { margin: 0; background: #070a17; color-scheme: dark; }
+      html[data-theme='light'], html[data-theme='light'] body { background: #f3f4fa; color-scheme: light; }
       #root:empty { min-height: 100vh; display: grid; place-items: center; }
       #root:empty::after {
         content: ''; width: 34px; height: 34px; border-radius: 50%;
-        border: 3px solid rgba(167, 139, 250, 0.22); border-top-color: #a78bfa;
+        border: 3px solid rgba(139, 92, 246, 0.2); border-top-color: #a78bfa;
         animation: aivoBoot .7s linear infinite;
       }
       @keyframes aivoBoot { to { transform: rotate(360deg); } }

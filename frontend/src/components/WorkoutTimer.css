@@ -1,0 +1,76 @@
+.wt-panel { position: relative; width: 100%; max-width: 440px; margin: 0 auto; padding: 22px 22px 22px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-xl); box-shadow: var(--shadow-pop); max-height: calc(100dvh - 24px); overflow-y: auto; }
+.wt-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding-right: 40px; }
+.wt-head h2 { font-size: 1.25rem; }
+.wt-head-icon { width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); }
+
+.wt-clock { --wt: var(--brand); position: relative; width: clamp(150px, 26vh, 200px); aspect-ratio: 1; margin: 0 auto 16px; border-radius: 50%; display: grid; place-content: center; text-align: center; background: var(--bg); border: 1px solid var(--line); transition: box-shadow 0.4s; box-shadow: 0 0 0 6px color-mix(in srgb, var(--wt) 10%, transparent); }
+.wt-ring { position: absolute; inset: 7px; border-radius: 50%; border: 4px solid color-mix(in srgb, var(--wt) 18%, transparent); }
+.wt-clock.running .wt-ring { border-top-color: var(--wt); animation: wtSpin 1.4s linear infinite; }
+@keyframes wtSpin { to { transform: rotate(360deg); } }
+.wt-time { display: flex; align-items: baseline; justify-content: center; gap: 1px; font-family: var(--font-display); font-weight: 750; font-size: clamp(1.5rem, 4vh, 2.1rem); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.wt-time i { font-style: normal; color: var(--wt); padding: 0 1px; }
+.wt-state { margin-top: 4px; color: var(--wt); font-size: 0.8rem; font-weight: 700; }
+
+.wt-label { margin: 0 0 8px; color: var(--muted); font-size: 0.82rem; font-weight: 650; }
+.wt-stages { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; width: min(100%, 220px); margin: -4px auto 14px; }
+.wt-stage { --c: var(--brand); height: 5px; border-radius: 3px; background: var(--c); opacity: 0.28; transition: opacity 0.3s, transform 0.3s, box-shadow 0.3s; }
+.wt-stage.now { opacity: 1; transform: scaleY(1.5); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 70%, transparent); }
+.wt-clock { transition: box-shadow 0.5s, border-color 0.5s; }
+.wt-clock.glow { border-color: color-mix(in srgb, var(--wt) 60%, transparent); animation: wtGlow 1.8s ease-in-out infinite; }
+@keyframes wtGlow {
+  0%, 100% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--wt) 14%, transparent), 0 0 22px 2px color-mix(in srgb, var(--wt) 45%, transparent); }
+  50%      { box-shadow: 0 0 0 9px color-mix(in srgb, var(--wt) 22%, transparent), 0 0 42px 8px color-mix(in srgb, var(--wt) 70%, transparent); }
+}
+
+.wt-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 10px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); }
+.wt-tabs button { min-height: 34px; border-radius: 9px; font-weight: 700; font-size: 0.86rem; color: var(--muted); transition: background-color 0.15s, color 0.15s; }
+.wt-tabs button.on { background: var(--brand-grad); color: var(--on-brand); }
+/* Workout names: an even grid, every chip the same size, centred text */
+.wt-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; margin-bottom: 14px; max-height: 176px; overflow-y: auto; padding: 3px 6px 3px 3px; scrollbar-width: thin; }
+.wt-chip { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 10px; border-radius: 12px; font-family: var(--font-display); font-size: 0.82rem; font-weight: 600; letter-spacing: 0.01em; text-align: center; line-height: 1.15; color: var(--text); background: linear-gradient(160deg, color-mix(in srgb, var(--brand) 9%, var(--raised)), var(--raised)); border: 1px solid color-mix(in srgb, var(--brand) 16%, var(--line)); transition: background-color 0.15s, color 0.15s, border-color 0.15s, transform 0.1s, box-shadow 0.15s; }
+.wt-chip-name { display: block; max-width: 100%; overflow-wrap: anywhere; }
+.wt-chip:hover { border-color: color-mix(in srgb, var(--brand) 55%, var(--line)); background: color-mix(in srgb, var(--brand) 14%, var(--raised)); }
+.wt-chip:active { transform: scale(0.96); }
+.wt-chip.on { font-weight: 700; color: #fff; background: var(--brand-grad); border-color: transparent; box-shadow: 0 4px 12px var(--brand-glow); }
+
+.wt-now { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; padding: 10px 14px; border-radius: 14px; background: var(--raised); border: 1px solid var(--line); }
+.wt-now-dot { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand-text); }
+.wt-now strong { font-family: var(--font-display); font-size: 1rem; }
+.wt-now em { margin-left: auto; font-style: normal; font-size: 0.74rem; font-weight: 700; color: var(--faint); }
+
+/* Saved: one short amber line (deliberately not the purple of the page, not green) */
+.wt-done { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(249, 115, 22, 0.12)); border: 1px solid rgba(251, 191, 36, 0.4); animation: wtPop 0.28s var(--ease); }
+.wt-done-ic { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(145deg, #fcd34d, #f59e0b); color: #3b2300; }
+.wt-done-main { flex: 1; min-width: 0; display: grid; line-height: 1.2; }
+.wt-done-main strong { font-size: 0.95rem; color: var(--gold); }
+.wt-done-main small { color: var(--muted); font-size: 0.74rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wt-pill { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 999px; font-size: 0.82rem; font-weight: 800; color: var(--text); background: rgba(251, 191, 36, 0.18); }
+@keyframes wtPop { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
+.wt-newbadges { margin-top: 10px; display: grid; gap: 6px; }
+.wt-newbadges > small { color: var(--gold); font-size: 0.74rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+
+.wt-error { margin-bottom: 12px; padding: 10px 12px; border-radius: var(--r-md); background: var(--alert-soft); color: var(--alert); font-size: 0.88rem; text-align: center; }
+.wt-controls { display: flex; gap: 10px; }
+.wt-go { --wt: var(--brand); flex: 1; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: var(--r-md); background: var(--wt); color: #14110a; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; transition: filter 0.15s, transform 0.12s; }
+.wt-go:hover { filter: brightness(1.08); }
+.wt-go:active { transform: scale(0.98); }
+.wt-go.stop { background: var(--alert); color: #fff; }
+.wt-go svg { fill: currentColor; }
+.wt-reset { min-height: 52px; padding: 0 18px; display: inline-flex; align-items: center; gap: 6px; border-radius: var(--r-md); background: var(--raised); border: 1px solid var(--line-strong); color: var(--text); font-weight: 650; font-size: 0.9rem; }
+.wt-reset:hover:not(:disabled) { background: var(--hover); }
+.wt-reset:disabled { opacity: 0.4; }
+
+
+
+
+/* ── "Still working out?" check-in + notes ── */
+.wt-checkin { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding: 12px 14px; border-radius: var(--r-md); border: 1px solid var(--brand-hi); background: var(--brand-soft); animation: wtCheckinPulse 1.6s ease-in-out infinite; }
+.wt-checkin-text { display: grid; gap: 2px; min-width: 0; }
+.wt-checkin-text strong { font-size: 0.95rem; }
+.wt-checkin-text small { color: var(--muted); font-size: 0.78rem; }
+.wt-checkin button { flex-shrink: 0; min-height: 40px; padding: 0 16px; border-radius: 12px; font-weight: 700; color: #fff; background: linear-gradient(135deg, #7a47d9, #985bff); box-shadow: 0 6px 16px rgba(152, 91, 255, 0.4); }
+.wt-notice { margin-bottom: 12px; padding: 10px 12px; border-radius: var(--r-md); background: var(--brand-soft); color: var(--text); font-size: 0.82rem; line-height: 1.45; text-align: center; }
+.wt-rules { margin: 0 0 12px; font-size: 0.75rem; line-height: 1.45; color: var(--faint); text-align: center; }
+@keyframes wtCheckinPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(152, 91, 255, 0.0); } 50% { box-shadow: 0 0 0 5px rgba(152, 91, 255, 0.22); } }
+@media (prefers-reduced-motion: reduce) { .wt-checkin { animation: none; } }
+.wt-go:disabled { opacity: 0.6; cursor: progress; }

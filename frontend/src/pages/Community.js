@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import API from '../services/api';
-import BackButton from '../components/BackButton';
+import Icon from '../components/Icon';
+import Avatar from '../components/Avatar';
 import { useChat } from '../components/ChatContext';
 import { useFeedback } from '../components/Feedback';
 import { compressImage } from '../utils/image';
@@ -11,9 +12,9 @@ import './Community.css';
 const dailyQuote = 'Progress is earned in the quiet grind, not the spotlight.';
 
 const trendingChallenges = [
-  { title: '30-Day Core Boost', detail: 'Daily core circuits + mobility routines.', icon: '🔥' },
-  { title: 'Hydration Hero', detail: 'Drink 2L water each day for 7 days.', icon: '💧' },
-  { title: 'Weekend Warrior', detail: 'Complete 3 strength sessions this weekend.', icon: '⚡' },
+  { title: '30-Day Core Boost', detail: 'Daily core circuits + mobility routines.', icon: 'flame' },
+  { title: 'Hydration Hero', detail: 'Drink 2L water each day for 7 days.', icon: 'activity' },
+  { title: 'Weekend Warrior', detail: 'Complete 3 strength sessions this weekend.', icon: 'zap' },
 ];
 
 const getCurrentUser = () => {
@@ -38,29 +39,29 @@ const PostCard = memo(function PostCard({ post, isAuthor, eager, onLike, onComme
   };
 
   return (
-    <article className="comm-post glass-panel">
+    <article className="comm-post card">
       <div className="comm-post-header">
-        <div className="comm-post-avatar">{post.author?.full_name?.charAt(0) || 'U'}</div>
+        <Avatar name={post.author?.full_name || 'U'} size={44} showPresence={false} />
         <div className="comm-post-meta">
           <strong>{post.author?.full_name}</strong>
           <span>{formatDateTime(post.createdAt)}</span>
         </div>
         {isAuthor && (
           <div className="comm-post-actions">
-            <button className="comm-ghost-btn" onClick={() => { setEditContent(post.content); setEditing(true); }} title="Edit">✏️</button>
-            <button className="comm-ghost-btn" onClick={() => onDelete(post.id)} title="Delete">🗑️</button>
+            <button className="comm-ghost-btn" onClick={() => { setEditContent(post.content); setEditing(true); }} title="Edit" aria-label="Edit post"><Icon name="edit" size={16} /></button>
+            <button className="comm-ghost-btn" onClick={() => onDelete(post.id)} title="Delete" aria-label="Delete post"><Icon name="trash" size={16} /></button>
           </div>
         )}
         {!isAuthor && (
           <div className="comm-post-actions">
-            <button className="comm-ghost-btn" onClick={() => setReport(report ? null : { reason: 'spam', details: '', state: 'idle' })} title="Report this post" aria-label="Report this post">🚩</button>
+            <button className="comm-ghost-btn" onClick={() => setReport(report ? null : { reason: 'spam', details: '', state: 'idle' })} title="Report this post" aria-label="Report this post"><Icon name="flag" size={16} /></button>
           </div>
         )}
       </div>
 
       {report && (
         <div className="comm-report">
-          {report.state === 'done' ? <span>✅ Thanks — our team will review this post.</span> : (
+          {report.state === 'done' ? <span className="comm-report-done"><Icon name="check" size={16} strokeWidth={2.6} /> Thanks, our team will review this post.</span> : (
             <>
               <select value={report.reason} onChange={(e) => setReport({ ...report, reason: e.target.value })}>
                 <option value="spam">Spam</option><option value="harassment">Harassment</option>
@@ -108,18 +109,18 @@ const PostCard = memo(function PostCard({ post, isAuthor, eager, onLike, onComme
       )}
 
       <div className="comm-post-footer">
-        <button className="comm-react-btn" onClick={() => onLike(post.id)} style={post.likedByUser ? { color: '#f87171', fontWeight: 700 } : undefined}>
-          {post.likedByUser ? '❤️' : '🤍'} <span>{post.likes}</span>
+        <button className={`comm-react-btn${post.likedByUser ? ' liked' : ''}`} onClick={() => onLike(post.id)} aria-pressed={!!post.likedByUser} aria-label="Like">
+          <Icon name="heart" size={18} className={post.likedByUser ? 'is-filled' : ''} /> <span>{post.likes}</span>
         </button>
-        <button className="comm-react-btn" onClick={() => setCommentsOpen((o) => !o)}>
-          💬 <span>{post.commentsCount}</span>
+        <button className={`comm-react-btn${commentsOpen ? ' on' : ''}`} onClick={() => setCommentsOpen((o) => !o)} aria-expanded={commentsOpen} aria-label="Comments">
+          <Icon name="message" size={18} /> <span>{post.commentsCount}</span>
         </button>
       </div>
 
       {commentsOpen && (
         <div className="comm-comments">
           {post.comments.length === 0
-            ? <p className="comm-hint">No comments yet.</p>
+            ? <p className="comm-hint">No comments yet. Be the first.</p>
             : post.comments.map((c) => (
               <div key={c.id} className="comm-comment-item">
                 <strong>{c.username}</strong>
@@ -130,12 +131,12 @@ const PostCard = memo(function PostCard({ post, isAuthor, eager, onLike, onComme
             <input
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
-              placeholder="Write a comment..."
+              placeholder="Write a comment"
               className="comm-comment-input"
               maxLength={500}
               onKeyDown={(e) => e.key === 'Enter' && submitComment()}
             />
-            <button className="comm-post-btn small" onClick={submitComment}>Send</button>
+            <button className="comm-post-btn small" onClick={submitComment}>Post</button>
           </div>
         </div>
       )}
@@ -146,8 +147,9 @@ const PostCard = memo(function PostCard({ post, isAuthor, eager, onLike, onComme
 const FeedSkeleton = () => (
   <>
     {[0, 1].map((i) => (
-      <div key={i} className="comm-post glass-panel" style={{ minHeight: 120, opacity: 0.5 }}>
-        <div className="comm-post-header"><div className="comm-post-avatar">&nbsp;</div></div>
+      <div key={i} className="comm-post card comm-skeleton">
+        <div className="comm-post-header"><div className="sk" style={{ width: 44, height: 44, borderRadius: '50%' }} /><div style={{ display: 'grid', gap: 8 }}><div className="sk" style={{ width: 120, height: 12 }} /><div className="sk" style={{ width: 80, height: 10 }} /></div></div>
+        <div className="sk" style={{ height: 14, width: '80%' }} />
       </div>
     ))}
   </>
@@ -253,49 +255,42 @@ const Community = () => {
 
   return (
     <div className="community-page">
-      <div className="home-bg-gradient"></div>
-      <div className="home-bg-orbs">
-        <div className="orb orb-1"></div>
-        <div className="orb orb-2"></div>
-        <div className="orb orb-3"></div>
-      </div>
-      <BackButton />
       <div className="community-content">
-        <header className="comm-header glass-panel">
+        <header className="page-head comm-header">
           <div className="comm-header-left">
-            <span className="pg-eyebrow">FITNESS FEED</span>
-            <h1 className="comm-title">Share, support & <span className="comm-accent">train together</span></h1>
-            <p className="comm-sub">Posts are visible only to you and your friends. Create, like, and comment on fitness moments.</p>
-          </div>
-          <div className="comm-header-quote">
-            <span className="comm-quote-icon">💬</span>
-            <p>"{dailyQuote}"</p>
+            <h1 className="comm-title">Community</h1>
+            <p className="comm-sub">Posts are visible to you and your friends. Share a win, cheer someone on.</p>
           </div>
         </header>
 
         <div className="community-grid">
           <div className="comm-main">
-            <div className="comm-create glass-panel">
+            <div className="comm-create card">
               <div className="comm-create-header">
-                <div className="comm-create-avatar">{currentUser?.full_name?.charAt(0) || 'U'}</div>
+                <Avatar name={currentUser?.full_name || 'U'} size={44} showPresence={false} />
                 <textarea
                   className="comm-create-input"
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
-                  placeholder="Share your fitness progress, workout wins, or motivation..."
+                  placeholder="Share a workout, a win or some motivation"
                   rows={3}
                   maxLength={2000}
                 />
               </div>
-              {postError && <p className="comm-post-error">{postError}</p>}
-              {imagePreview && <img className="comm-img-preview" src={imagePreview} alt="Preview" />}
+              {postError && <p className="comm-post-error" role="alert">{postError}</p>}
+              {imagePreview && (
+                <div className="comm-img-wrap">
+                  <img className="comm-img-preview" src={imagePreview} alt="Preview" />
+                  <button type="button" className="comm-img-remove" onClick={() => setImagePreview('')} aria-label="Remove photo"><Icon name="x" size={16} /></button>
+                </div>
+              )}
               <div className="comm-create-footer">
                 <label className="comm-upload-btn">
-                  📷 Photo
+                  <Icon name="image" size={18} /> Add photo
                   <input type="file" accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} />
                 </label>
                 <button className="comm-post-btn" onClick={handlePost} disabled={submitting}>
-                  {submitting ? 'Posting…' : '🚀 Post'}
+                  {submitting ? 'Posting…' : 'Post'}
                 </button>
               </div>
             </div>
@@ -304,9 +299,10 @@ const Community = () => {
               {loading ? (
                 <FeedSkeleton />
               ) : posts.length === 0 ? (
-                <div className="comm-empty glass-panel">
-                  <span>🏋️</span>
-                  <p>No posts yet. Share your first fitness update and check back for friend activity.</p>
+                <div className="comm-empty card">
+                  <span className="comm-empty-icon"><Icon name="users" size={26} /></span>
+                  <strong>Nothing here yet</strong>
+                  <p>Share your first update. Posts from your friends will show up here too.</p>
                 </div>
               ) : (
                 <>
@@ -323,9 +319,9 @@ const Community = () => {
                     />
                   ))}
                   {hasMore && (
-                    <button className="comm-post-btn" style={{ alignSelf: 'center' }} disabled={loadingMore}
+                    <button className="comm-ghost-btn comm-more" disabled={loadingMore}
                       onClick={() => loadFeed({ more: true, before: nextBefore })}>
-                      {loadingMore ? 'Loading…' : 'Load more'}
+                      {loadingMore ? 'Loading…' : 'Load more posts'}
                     </button>
                   )}
                 </>
@@ -334,11 +330,15 @@ const Community = () => {
           </div>
 
           <aside className="comm-sidebar">
-            <div className="comm-sidebar-card glass-panel">
-              <div className="comm-sidebar-title">⚡ Trending Challenges</div>
+            <div className="comm-sidebar-card card comm-quote-card">
+              <p>“{dailyQuote}”</p>
+            </div>
+
+            <div className="comm-sidebar-card card">
+              <div className="comm-sidebar-title">Challenges to try</div>
               {trendingChallenges.map((ch) => (
                 <div key={ch.title} className="comm-sidebar-item">
-                  <span className="comm-sidebar-item-icon">{ch.icon}</span>
+                  <span className="comm-sidebar-item-icon"><Icon name={ch.icon} size={18} /></span>
                   <div>
                     <strong>{ch.title}</strong>
                     <span>{ch.detail}</span>
@@ -347,17 +347,17 @@ const Community = () => {
               ))}
             </div>
 
-            <div className="comm-sidebar-card glass-panel">
-              <div className="comm-sidebar-title">👥 Your Friends</div>
+            <div className="comm-sidebar-card card">
+              <div className="comm-sidebar-title">Your friends</div>
               {friends.length === 0 ? (
-                <p className="comm-hint" style={{ padding: '8px 0' }}>Add friends to see them here.</p>
+                <p className="comm-hint">Add friends to see them here.</p>
               ) : (
                 friends.slice(0, 5).map((u) => (
                   <div key={u.id} className="comm-sidebar-item">
-                    <div className="comm-sidebar-avatar">{u.full_name?.charAt(0) || 'U'}</div>
+                    <Avatar name={u.full_name || 'U'} online={!!u.online} size={38} />
                     <div>
                       <strong>{u.full_name}</strong>
-                      <span>{u.online ? '● Online' : (u.username || u.email)}</span>
+                      <span className={u.online ? 'is-online' : ''}>{u.online ? 'Online now' : (u.username || u.email)}</span>
                     </div>
                   </div>
                 ))

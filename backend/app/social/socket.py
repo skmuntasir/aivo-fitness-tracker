@@ -7,10 +7,24 @@ from app.extensions import socketio
 from app.utils import utcnow
 from app.social.service import create_message, is_friend
 from app.runtime import user_status
+from app.demo import set_demo
 
 # user_id -> set of socket ids (a user can have several tabs/devices)
 online_users = {}
 sid_to_user = {}
+demo_sids = set()      # socket ids that belong to the demo sandbox
+demo_uids = set()      # demo users currently online (kept apart from the real online count)
+
+
+def online_count():
+    """Online members in the CURRENT scope: a demo admin only ever sees demo users, a real admin only real ones."""
+    from app.demo import is_demo
+    return len(online_users.keys() & demo_uids) if is_demo() else len(online_users.keys() - demo_uids)
+
+
+def _scope():
+    """Socket events get a fresh request context: re-apply the demo/real data scope of this connection."""
+    set_demo(request.sid in demo_sids)
 
 
 def _get_user_id_from_token(token):
@@ -19,6 +33,7 @@ def _get_user_id_from_token(token):
     try:
         decoded = decode_token(token)
         uid = str(decoded.get('sub') or decoded.get('identity'))
+        set_demo(bool(decoded.get('demo')))   # look the account up in the right (real / demo) data
         st = user_status(uid)
         if not st or not st['is_active'] or (st['tv'] is not None and int(decoded.get('tv', 0) or 0) != st['tv']):
             return None   # suspended, deleted or force-logged-out
@@ -46,9 +61,13 @@ def on_connect(auth):
     if not user_id:
         return False
 
+    from app.demo import is_demo
     first_connection = user_id not in online_users
     online_users.setdefault(user_id, set()).add(request.sid)
     sid_to_user[request.sid] = user_id
+    if is_demo():
+        demo_sids.add(request.sid)
+        demo_uids.add(user_id)
     join_room(user_id)
     if first_connection:
         mongo.db.users.update_one({'_id': ObjectId(user_id)}, {'$set': {'last_active': utcnow()}})
@@ -58,6 +77,7 @@ def on_connect(auth):
 @socketio.on('disconnect')
 def on_disconnect(*_args):
     sid = request.sid
+    _scope()
     user_id = sid_to_user.pop(sid, None)
     if not user_id:
         return
@@ -67,12 +87,15 @@ def on_disconnect(*_args):
     # single disconnect (e.g. React StrictMode remount) marked them offline.
     if not sids:
         online_users.pop(user_id, None)
+        demo_uids.discard(user_id)
         mongo.db.users.update_one({'_id': ObjectId(user_id)}, {'$set': {'last_active': utcnow()}})
         _broadcast_presence(user_id, False)
+    demo_sids.discard(sid)
 
 
 @socketio.on('typing')
 def on_typing(payload):
+    _scope()
     user_id = sid_to_user.get(request.sid)
     receiver_id = (payload or {}).get('receiverId')
     if not user_id or not receiver_id or not is_friend(user_id, receiver_id):
@@ -87,6 +110,7 @@ def on_typing(payload):
 def on_send_message(payload):
     """Returns an ack {ok, message|error} so the sender can swap its optimistic
     bubble for the saved message instead of appending a second copy."""
+    _scope()
     sender_id = sid_to_user.get(request.sid)
     if not sender_id:
         return {'ok': False, 'error': 'Not authenticated'}
@@ -105,6 +129,7 @@ def on_send_message(payload):
 
 @socketio.on('mark_read')
 def on_mark_read(payload):
+    _scope()
     user_id = sid_to_user.get(request.sid)
     friend_id = (payload or {}).get('friendId')
     if not user_id or not friend_id:

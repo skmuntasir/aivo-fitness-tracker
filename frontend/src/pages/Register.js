@@ -1,5 +1,9 @@
 import React, { useState, useRef } from 'react';
+import ThemeToggle from '../components/ThemeToggle';
+import './Auth.css';
 import './Register.css';
+import Icon from '../components/Icon';
+import Logo from '../components/Logo';
 import API from '../services/api';
 import { useFeedback } from '../components/Feedback';
 
@@ -219,20 +223,27 @@ const Register = () => {
   };
 
   return (
-    <div className="register-container">
-      <div className="register-card">
-        <div className="register-header">
-          <div className="logo">
-            <div className="logo-icon">💪</div>
-            <h1>Join Aivo</h1>
-          </div>
-          <p className="welcome-text">Start your fitness journey today!</p>
+    <div className="register-container auth-page">
+      <ThemeToggle className="theme-fab" />
+      <aside className="auth-aside" aria-hidden="true">
+        <Logo className="main-logo" priority />
+        <ul className="auth-points">
+          <li><span><Icon name="target" size={18} /></span><div><strong>Tell us your goals</strong><small>Your answers shape the AI coach and your calorie target.</small></div></li>
+          <li><span><Icon name="activity" size={18} /></span><div><strong>Track what matters</strong><small>Workouts, streaks, points and progress charts in one place.</small></div></li>
+          <li><span><Icon name="users" size={18} /></span><div><strong>Join the community</strong><small>Add friends, share progress and compete on the leaderboard.</small></div></li>
+        </ul>
+      </aside>
+      <div className="register-card auth-card">
+        <div className="register-header auth-head">
+          <Logo alt="Aivo" className="auth-logo-mobile" />
+          <h1>Create your account</h1>
+          <p className="welcome-text">It takes about two minutes. Fields marked * are required.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="register-form">
           {/* Personal Information */}
           <div className="form-section">
-            <h3>Personal Information</h3>
+            <h3><Icon name="user" size={17} /> About you</h3>
             
             <div className="form-group">
               <label htmlFor="fullName">Full Name *</label>
@@ -280,7 +291,7 @@ const Register = () => {
                     className="password-toggle"
                     onClick={() => setShowPassword(!showPassword)}
                   >
-                    {showPassword ? "🙈" : "👁️"}
+                    <Icon name={showPassword ? "eyeOff" : "eye"} size={18} />
                   </button>
                 </div>
                 {errors.password && <span className="error-message">{errors.password}</span>}
@@ -303,7 +314,7 @@ const Register = () => {
                     className="password-toggle"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   >
-                    {showConfirmPassword ? "🙈" : "👁️"}
+                    <Icon name={showConfirmPassword ? "eyeOff" : "eye"} size={18} />
                   </button>
                 </div>
                 {errors.confirmPassword && <span className="error-message">{errors.confirmPassword}</span>}
@@ -313,7 +324,7 @@ const Register = () => {
 
           {/* Physical Information */}
           <div className="form-section">
-            <h3>Physical Information</h3>
+            <h3><Icon name="activity" size={17} /> Your body</h3>
             
             <div className="form-row">
               <div className="form-group">
@@ -409,10 +420,10 @@ const Register = () => {
 
           {/* Fitness Information */}
           <div className="form-section">
-            <h3>Fitness Information</h3>
+            <h3><Icon name="target" size={17} /> Your training</h3>
             
             <div className="form-group">
-              <label htmlFor="fitnessLevel">Fitness Level *</label>
+              <label htmlFor="fitnessLevel">Fitness level *</label>
               <select
                 id="fitnessLevel"
                 name="fitnessLevel"
@@ -429,7 +440,7 @@ const Register = () => {
             </div>
 
             <div className="form-group">
-              <label>Fitness Goals *</label>
+              <label>Fitness goals * (pick any)</label>
               <div className="checkbox-grid">
                 {fitnessGoalOptions.map(goal => (
                   <label key={goal} className="checkbox-wrapper">
@@ -451,10 +462,10 @@ const Register = () => {
 
           {/* Additional Information */}
           <div className="form-section">
-            <h3>Additional Information</h3>
+            <h3><Icon name="flag" size={17} /> Anything else</h3>
             
             <div className="form-group">
-              <label htmlFor="medicalConditions">Medical Conditions or Injuries (Optional)</label>
+              <label htmlFor="medicalConditions">Medical conditions or injuries (optional)</label>
               <textarea
                 id="medicalConditions"
                 name="medicalConditions"
@@ -468,7 +479,7 @@ const Register = () => {
 
 
             <div className="form-group">
-              <label htmlFor="targetWeight">Target Weight (Optional)</label>
+              <label htmlFor="targetWeight">Target weight (optional)</label>
               <div className="input-with-unit">
                 <input
                   type="number"
@@ -490,11 +501,11 @@ const Register = () => {
                 {formData.profilePicturePreview
                   ? <img src={formData.profilePicturePreview} alt="Preview" className="reg-avatar-img" />
                   : <div className="reg-avatar-placeholder">
-                      <span className="reg-avatar-icon">📷</span>
-                      <span className="reg-avatar-text">Click to upload photo</span>
+                      <span className="reg-avatar-icon"><Icon name="camera" size={22} /></span>
+                      <span className="reg-avatar-text">Upload a photo</span>
                     </div>
                 }
-                <div className="reg-avatar-overlay">📷 Change</div>
+                <div className="reg-avatar-overlay"><Icon name="camera" size={16} /> Change</div>
               </div>
               <input
                 ref={picInputRef}
@@ -514,7 +525,7 @@ const Register = () => {
             disabled={isLoading}
           >
             {isLoading ? (
-              <span className="loading-spinner">⏳</span>
+              <span className="loading-spinner" aria-label="Creating account" />
             ) : (
               'Create Account'
             )}
@@ -522,7 +533,7 @@ const Register = () => {
         </form>
 
         <div className="register-footer">
-          <p>Already have an account? <a href="/login" className="login-link">Sign in</a></p>
+          <p>Already a member? <a href="/login" className="login-link">Sign in</a></p>
         </div>
       </div>
     </div>

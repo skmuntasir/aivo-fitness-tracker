@@ -27,16 +27,19 @@ DEFAULT_SETTINGS = {
 _SETTINGS_TTL = 10
 _STATUS_TTL = 15
 _lock = threading.Lock()
-_settings = {'t': 0.0, 'v': None}
+_settings = {False: {'t': 0.0, 'v': None}, True: {'t': 0.0, 'v': None}}   # real scope / demo sandbox scope
 _status = {}   # uid -> (timestamp, info|None)
 
 
 # ── settings ────────────────────────────────────────────────────────────────
 def get_settings(force=False):
+    from .demo import is_demo
+    scope = is_demo()   # the demo sandbox has its own settings (stored in demo_settings), so demo admins can't change the real site
     now = time.time()
     with _lock:
-        if not force and _settings['v'] is not None and now - _settings['t'] < _SETTINGS_TTL:
-            return dict(_settings['v'])
+        c = _settings[scope]
+        if not force and c['v'] is not None and now - c['t'] < _SETTINGS_TTL:
+            return dict(c['v'])
     merged = dict(DEFAULT_SETTINGS)
     try:
         doc = mongo.db.settings.find_one({'_id': 'global'}) or {}
@@ -44,15 +47,24 @@ def get_settings(force=False):
     except Exception:
         pass   # DB hiccup: fall back to defaults rather than taking the site down
     with _lock:
-        _settings['v'], _settings['t'] = merged, now
+        _settings[scope]['v'], _settings[scope]['t'] = merged, now
     return dict(merged)
 
 
 def save_settings(patch):
+    from .demo import is_demo
     mongo.db.settings.update_one({'_id': 'global'}, {'$set': patch}, upsert=True)
     with _lock:
-        _settings['v'] = None
+        _settings[is_demo()]['v'] = None
     return get_settings(force=True)
+
+
+def invalidate_settings(demo=None):
+    """Drop the cached settings (both scopes, or just one)."""
+    with _lock:
+        for scope in (False, True):
+            if demo is None or demo == scope:
+                _settings[scope]['v'] = None
 
 
 def find_banned_word(text):

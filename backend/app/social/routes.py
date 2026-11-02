@@ -485,6 +485,8 @@ def post_image(post_id):
     if not post_obj or not hmac.compare_digest(sig, _image_sig(post_id)):
         return Response(status=404)
     post = mongo.db.posts.find_one({'_id': post_obj}, {'image': 1})
+    if not post and mongo.real_db is not None:   # photo of a demo-sandbox post (this URL carries no login, only the signature)
+        post = mongo.real_db['demo_posts'].find_one({'_id': post_obj}, {'image': 1})
     data_url = (post or {}).get('image')
     if not data_url or not isinstance(data_url, str) or ',' not in data_url:
         return Response(status=404)

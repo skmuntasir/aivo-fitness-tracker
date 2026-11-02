@@ -4,6 +4,7 @@ import ADMIN from './adminApi';
 import { useAdmin } from './adminContext';
 import Icon from './Icon';
 import { Avatar } from './ui';
+import logo from '../pages/images/aivo_logo.webp';
 
 const NAV = [
   { label: 'Menu', items: [
@@ -42,8 +43,8 @@ export default function AdminLayout({ children }) {
     <>
       <aside className={`a-side ${open ? 'open' : ''}`}>
         <div className="a-brand">
-          <span className="a-brand-mark">A</span>
-          <span><b>Aivo</b><small>Admin console</small></span>
+          <img className="a-brand-logo" src={logo} alt="Aivo" width="360" height="240" decoding="async" />
+          <span className="a-brand-tag"><Icon name="shield" size={13} /> Admin console</span>
         </div>
         <nav className="a-nav">
           {NAV.filter((g) => isAdmin || !g.adminOnly).map((g) => (
@@ -59,7 +60,7 @@ export default function AdminLayout({ children }) {
           ))}
         </nav>
         <div className="a-side-foot">
-          <a href="/home" style={{ color: '#94a3b8', display: 'flex', gap: 8, alignItems: 'center', padding: '8px 12px' }}>
+          <a href="/home">
             <Icon name="external" size={15} /> Open user app
           </a>
         </div>
@@ -70,6 +71,7 @@ export default function AdminLayout({ children }) {
         <header className="a-top">
           <button className="a-icon-btn a-burger" onClick={() => setOpen(true)} aria-label="Open menu"><Icon name="menu" /></button>
           <div className="a-grow" />
+          {admin?.demo && <span className="a-demo-pill" title="Everything you change here stays in the demo sandbox and resets when you sign out.">Demo sandbox</span>}
           <button className="a-icon-btn" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle light / dark">
             <Icon name={theme === 'light' ? 'moon' : 'sun'} />
           </button>

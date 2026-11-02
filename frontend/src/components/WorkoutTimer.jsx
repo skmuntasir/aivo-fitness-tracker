@@ -3,36 +3,30 @@ import API from "../services/api";
 import { userTimeZone } from "../utils/time";
 import { useFeedback } from "./Feedback";
 import Icon from "./Icon";
+import { BadgeStrip } from "./Badges";
+import { WORKOUTS, WORKOUT_GROUPS, workoutByName } from "../data/workouts";
+import { HEAT_STEPS, heatStep } from "../utils/heat";
+import "./WorkoutTimer.css";
 
-const ACTIVITIES = [
-  { value: "Running",    label: "Running",    icon: "🏃",  color: "#f97316" },
-  { value: "Walking",    label: "Walking",    icon: "🚶",  color: "#22c55e" },
-  { value: "Strength",   label: "Strength",   icon: "💪",  color: "#3b82f6" },
-  { value: "Cycling",    label: "Cycling",    icon: "🚴",  color: "#a855f7" },
-  { value: "Swimming",   label: "Swimming",   icon: "🏊",  color: "#06b6d4" },
-  { value: "Yoga",       label: "Yoga",       icon: "🧘",  color: "#632142" },
-  { value: "Push Ups",   label: "Push Ups",   icon: "⚡",  color: "#eab308" },
-  { value: "Jump Rope",  label: "Jump Rope",  icon: "➰",  color: "#ef4444" },
-  { value: "Pull Ups",   label: "Pull Ups",   icon: "🏋",  color: "#14b8a6" },
-  { value: "Stretching", label: "Stretching", icon: "🤸",  color: "#f59e0b" },
-];
-
-// A running session is remembered so a refresh / accidental navigation doesn't lose it.
+// A running session is remembered so a refresh / accidental navigation doesn't lose it. The SERVER owns the clock:
+// it records the start time when the workout begins, so these local values are only for resuming the display.
 const RUN_KEY = () => {
   try { const u = JSON.parse(localStorage.getItem("user") || "{}"); return `aivo_active_workout_${u.id || u._id || "me"}`; } catch { return "aivo_active_workout"; }
 };
-const MAX_RESUME_MS = 12 * 60 * 60 * 1000;
+const MAX_RESUME_MS = 4 * 60 * 60 * 1000;
+const DEFAULT_LIMITS = { max_seconds: 3 * 3600, checkin_every: 30 * 60, checkin_grace: 2 * 60, daily_cap: 600 };
 const readRun = () => {
   try {
     const r = JSON.parse(localStorage.getItem(RUN_KEY()) || "null");
-    if (!r?.start || !r?.activity) return null;
+    if (!r?.start || !r?.activity || !r?.sid) { localStorage.removeItem(RUN_KEY()); return null; }   // older saves have no server session
     const startMs = new Date(r.start).getTime();
     if (!Number.isFinite(startMs) || Date.now() - startMs > MAX_RESUME_MS) { localStorage.removeItem(RUN_KEY()); return null; }
-    return { start: new Date(startMs), activity: r.activity };
+    return { start: new Date(startMs), activity: r.activity, sid: r.sid };
   } catch { return null; }
 };
-const writeRun = (start, activity) => { try { localStorage.setItem(RUN_KEY(), JSON.stringify({ start: start.toISOString(), activity })); } catch {} };
+const writeRun = (start, activity, sid) => { try { localStorage.setItem(RUN_KEY(), JSON.stringify({ start: start.toISOString(), activity, sid })); } catch {} };
 const clearRun = () => { try { localStorage.removeItem(RUN_KEY()); } catch {} };
+const mmss = (sec) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
 
 const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete, onClose }, ref) {
   const { choose, toast } = useFeedback();
@@ -41,56 +35,139 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
   const [elapsedSeconds, setElapsed] = useState(resumed ? Math.floor((Date.now() - resumed.start.getTime()) / 1000) : 0);
   const [activityType, setActivity]  = useState(resumed ? resumed.activity : "");
   const [error, setError]            = useState("");
+  const [notice, setNotice]          = useState("");
   const [pointsEarned, setPoints]    = useState(null);
   const [currentStreak, setStreak]   = useState(null);
   const [saved, setSaved]            = useState(false);
+  const [starting, setStarting]      = useState(false);
+  const [checkin, setCheckin]        = useState(null);     // { deadline } while "Still working out?" is waiting for an answer
+  const [newBadges, setNewBadges]    = useState([]);
+  const [group, setGroup]           = useState(() => workoutByName(resumed?.activity)?.group || "gym");
   const intervalRef  = useRef();
   const startTimeRef = useRef(resumed ? resumed.start : undefined);
+  const sidRef       = useRef(resumed ? resumed.sid : null);
+  const lastConfRef  = useRef(Date.now());                 // local time of the last "I'm here" (or the start)
+  const limitsRef    = useRef(DEFAULT_LIMITS);
+  const stoppingRef  = useRef(false);
+  const stopRef      = useRef(null);                       // always the latest handleStop (used by the timer tick)
+
+  // Resumed after a refresh: ask the server what is really going on (and when the last check-in was).
+  useEffect(() => {
+    if (!resumed) return;
+    API.get("/workouts/active").then((res) => {
+      const d = res.data;
+      if (d?.limits) limitsRef.current = { ...DEFAULT_LIMITS, ...d.limits };
+      if (!d?.active || d.session_id !== resumed.sid) {
+        clearRun(); sidRef.current = null; setIsRunning(false); setElapsed(0); setActivity("");
+        setNotice("That workout had already ended, so nothing was saved.");
+        return;
+      }
+      const skew = Date.now() - new Date(d.server_now).getTime();                 // browser clock vs server clock
+      startTimeRef.current = new Date(new Date(d.start_time).getTime() + skew);
+      lastConfRef.current = new Date(d.last_confirmed).getTime() + skew;
+    }).catch(() => { /* offline: keep the local view, the server decides when it is saved */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Elapsed time is derived from timestamps, not counted ticks: browsers throttle setInterval in
-  // background tabs, which made long workouts under-count.
+  // background tabs, which made long workouts under-count. The same tick drives the "Still working out?" prompt.
   useEffect(() => {
     if (!isRunning) return undefined;
-    const tick = () => setElapsed(Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000));
+    const tick = () => {
+      const now = Date.now();
+      const secs = Math.floor((now - startTimeRef.current.getTime()) / 1000);
+      setElapsed(secs);
+      const L = limitsRef.current;
+      const due = lastConfRef.current + L.checkin_every * 1000;
+      const deadline = due + L.checkin_grace * 1000;
+      if (now >= deadline || secs >= L.max_seconds) { stopRef.current && stopRef.current({ auto: true }); return; }
+      if (now >= due) setCheckin((prev) => prev || { deadline });
+    };
     tick();
     intervalRef.current = setInterval(tick, 500);
     document.addEventListener("visibilitychange", tick);
     return () => { clearInterval(intervalRef.current); document.removeEventListener("visibilitychange", tick); };
   }, [isRunning]);
 
-  const handleStart = () => {
+  // Make the prompt noticeable when the tab is in the background.
+  useEffect(() => {
+    if (!checkin) return undefined;
+    const old = document.title;
+    document.title = "Still working out? · Aivo";
+    return () => { document.title = old; };
+  }, [checkin]);
+
+  const handleStart = async () => {
     if (!activityType) { setError("Select an activity first."); return; }
-    setError("");
+    setError(""); setNotice("");
     setPoints(null);
     setStreak(null);
     setSaved(false);
-    startTimeRef.current = new Date();
-    writeRun(startTimeRef.current, activityType);
-    setElapsed(0);
-    setIsRunning(true);
+    setNewBadges([]);
+    setStarting(true);
+    try {
+      const res = await API.post("/workouts/start", { activity_type: activityType, tz: userTimeZone });
+      const d = res.data;
+      if (d?.limits) limitsRef.current = { ...DEFAULT_LIMITS, ...d.limits };
+      sidRef.current = d.session_id;
+      startTimeRef.current = new Date();
+      lastConfRef.current = Date.now();
+      stoppingRef.current = false;
+      writeRun(startTimeRef.current, activityType, d.session_id);
+      setElapsed(0);
+      setCheckin(null);
+      setIsRunning(true);
+    } catch (err) {
+      setError(err?.response?.data?.message || "Could not start the workout. Please check your connection.");
+    } finally {
+      setStarting(false);
+    }
   };
 
-  const handleStop = async () => {
+  // "I'm here" – keeps the session alive for another check-in period.
+  const handleCheckin = async () => {
+    try {
+      await API.post("/workouts/checkin", { session_id: sidRef.current });
+      lastConfRef.current = Date.now();
+      setCheckin(null);
+    } catch (err) {
+      const code = err?.response?.data?.code;
+      if (code === "expired") stopRef.current && stopRef.current({ auto: true });
+      else if (code === "no_session") { clearRun(); sidRef.current = null; clearInterval(intervalRef.current); setIsRunning(false); setCheckin(null); setNotice("This workout is no longer active, so nothing was saved."); }
+      else setError("Could not confirm. Check your connection and tap again.");
+    }
+  };
+
+  const handleStop = async ({ auto = false } = {}) => {
+    if (stoppingRef.current) return { ok: false, message: "Already saving." };
+    stoppingRef.current = true;
     clearInterval(intervalRef.current);
     setIsRunning(false);
+    setCheckin(null);
     clearRun();
-    const endTime = new Date();
-    const finalSeconds = Math.floor((endTime.getTime() - startTimeRef.current.getTime()) / 1000);
-    setElapsed(finalSeconds);
+    const localSecs = Math.floor((Date.now() - startTimeRef.current.getTime()) / 1000);
+    setElapsed(localSecs);
+    // Show the golden "Saved" card the instant Stop is tapped (1 min = 1 point); the server's exact numbers replace it a moment later.
+    const optimistic = localSecs >= 60;
+    if (optimistic) { setError(""); setNotice(""); setPoints(Math.floor(localSecs / 60)); setStreak(null); setSaved(true); }
     try {
-      const res = await API.post("/workouts/complete", {
-        start_time:    startTimeRef.current.toISOString(),
-        end_time:      endTime.toISOString(),
-        duration:      finalSeconds,
-        activity_type: activityType,
-        tz:            userTimeZone,
-      });
+      // Only the session id is sent: the server uses its own clock for the duration.
+      const res = await API.post("/workouts/complete", { session_id: sidRef.current, activity_type: activityType, tz: userTimeZone });
       const data = res.data;
       if (data.success) {
+        setElapsed(data.duration);                                   // what was actually credited
         setPoints(data.points_earned);
         setStreak(data.streak);
+        setNewBadges(Array.isArray(data.new_badges) ? data.new_badges : []);
+        const lim = limitsRef.current;
+        const notes = [];
+        if (data.auto_stopped || auto) notes.push("The timer stopped on its own because the “Still working out?” check-in wasn’t answered. Time is credited up to that point.");
+        if (data.length_capped) notes.push(`Workouts are capped at ${Math.round(lim.max_seconds / 3600)} hours.`);
+        if (data.daily_cap_hit) notes.push(`Daily points limit (${lim.daily_cap}) reached. The extra points aren’t counted.`);
+        setNotice(notes.join(" "));
         setError("");
         setSaved(true);
+        sidRef.current = null;
         try {
           const stored = JSON.parse(localStorage.getItem("user") || "{}");
           stored.streak = data.streak;
@@ -100,25 +177,35 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
         onWorkoutComplete && onWorkoutComplete();
         return { ok: true, points: data.points_earned };
       }
+      setSaved(false); setPoints(null);
       setError(data.message || "Error logging workout.");
       return { ok: false, message: data.message };
     } catch (err) {
       const message = err?.response?.data?.message;
+      setSaved(false); setPoints(null);
       setError(message || "Server error.");
       return { ok: false, message };
+    } finally {
+      stoppingRef.current = false;
     }
   };
+  stopRef.current = handleStop;
 
   const handleReset = () => {
     clearInterval(intervalRef.current);
+    if (isRunning) API.post("/workouts/cancel").catch(() => {});     // discard the server session too
+    sidRef.current = null;
     clearRun();
     setIsRunning(false);
+    setCheckin(null);
     setElapsed(0);
     setActivity("");
     setError("");
+    setNotice("");
     setPoints(null);
     setStreak(null);
     setSaved(false);
+    setNewBadges([]);
   };
 
   // Called by the modal's × button / backdrop. While a session is running, ask what to do with it.
@@ -150,315 +237,113 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
   const mins = String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(2, "0");
   const secs = String(elapsedSeconds % 60).padStart(2, "0");
 
-  const selected    = ACTIVITIES.find(a => a.value === activityType);
-  const accentColor = selected?.color || "#8b5cf6";
+  const selected = workoutByName(activityType);
+  const step     = heatStep(elapsedSeconds);                 // same colour steps as the streak heatmap
+  const accent   = step ? step.bright : "#818cf8";
+  const glowing  = isRunning && step?.key === "l5";
+  const showPicker = !isRunning && !saved;
+  const list = WORKOUTS.filter((w) => w.group === group);
 
   return (
-    <div style={styles.panel}>
-      {/* Title row */}
-      <div style={styles.titleRow}>
-        <span style={styles.titleIcon}><Icon name="timer" size={22} /></span>
-        <h2 style={styles.title}>Workout Timer</h2>
+    <div className="wt-panel">
+      <div className="wt-head">
+        <span className="wt-head-icon"><Icon name="timer" size={20} /></span>
+        <h2>Workout timer</h2>
       </div>
 
-      {/* Clock */}
-      <div style={{ ...styles.clockWrap, borderColor: accentColor + "55", boxShadow: `0 0 40px ${accentColor}22` }}>
-        <div style={{ ...styles.clockRing, borderTopColor: accentColor, animation: isRunning ? "timerSpin 1.2s linear infinite" : "none" }} />
-        <div style={styles.clockInner}>
-          <div style={styles.timeDisplay}>
-            <span style={styles.timeDigit}>{hrs}</span>
-            <span style={{ ...styles.timeSep, color: accentColor }}>:</span>
-            <span style={styles.timeDigit}>{mins}</span>
-            <span style={{ ...styles.timeSep, color: accentColor }}>:</span>
-            <span style={styles.timeDigit}>{secs}</span>
+      {/* Clock: ring colour follows the session length (deep -> royal -> electric -> neon -> glowing ultraviolet) */}
+      <div className={`wt-clock${isRunning ? " running" : ""}${glowing ? " glow" : ""}`} style={{ "--wt": accent }}>
+        <div className="wt-ring" />
+        <div className="wt-clock-inner">
+          <div className="wt-time">
+            <span>{hrs}</span><i>:</i><span>{mins}</span><i>:</i><span>{secs}</span>
           </div>
-          <div style={{ ...styles.timeLabel, color: accentColor }}>
-            {isRunning ? (selected?.label || "Active") : elapsedSeconds > 0 ? "Paused" : "Ready"}
+          <div className="wt-state">
+            {isRunning ? (selected?.short || selected?.name || activityType || "Active") : elapsedSeconds > 0 ? "Paused" : "Ready"}
           </div>
         </div>
       </div>
-
-      {/* Activity picker */}
-      <div style={styles.activityGrid}>
-        {ACTIVITIES.map(act => {
-          const isActive = activityType === act.value;
-          return (
-            <button
-              key={act.value}
-              onClick={() => !isRunning && setActivity(act.value)}
-              disabled={isRunning}
-              style={{
-                ...styles.actBtn,
-                background: isActive ? `${act.color}22` : "rgba(255,255,255,0.04)",
-                border: isActive ? `1px solid ${act.color}88` : "1px solid rgba(255,255,255,0.08)",
-                color: isActive ? act.color : "#c5d4ff",
-                transform: isActive ? "scale(1.04)" : "scale(1)",
-                cursor: isRunning ? "not-allowed" : "pointer",
-                opacity: isRunning && !isActive ? 0.45 : 1,
-              }}
-            >
-              <span style={styles.actIcon}>{act.icon}</span>
-              <span style={styles.actLabel}>{act.label}</span>
-            </button>
-          );
-        })}
+      <div className="wt-stages" aria-label="Colour steps by session length">
+        {HEAT_STEPS.map((st) => (
+          <span key={st.key} className={`wt-stage${step?.key === st.key ? " now" : ""}`} style={{ "--c": st.bright }} title={`${st.name} · ${st.range}`} />
+        ))}
       </div>
 
-      {/* Error */}
-      {error && <div style={styles.errorBox}>{error}</div>}
-
-      {/* Controls */}
-      <div style={styles.controlRow}>
-        {!isRunning ? (
-          <button onClick={handleStart} style={{ ...styles.ctaBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)` }}>
-            <Icon name="play" size={16} /> Start
-          </button>
-        ) : (
-          <button onClick={handleStop} style={{ ...styles.ctaBtn, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, background: "linear-gradient(135deg, #ef4444, #b91c1c)" }}>
-            <Icon name="stop" size={16} /> Stop &amp; Save
-          </button>
-        )}
-        <button onClick={handleReset} style={{ ...styles.resetBtn, display: "inline-flex", alignItems: "center", gap: 6 }} disabled={isRunning}>
-          <Icon name="reset" size={15} /> Reset
-        </button>
-      </div>
-
-
-      {/* Result card: compact so points + streak are visible without scrolling */}
-      {saved && pointsEarned !== null && (
-        <div style={styles.successBox}>
-          <div style={styles.successHead}>
-            <span style={styles.successConfetti}>🎉</span>
-            <div>
-              <div style={styles.successTitle}>Workout Complete!</div>
-              <div style={styles.successSub}>{activityType} · {hrs}:{mins}:{secs}</div>
-            </div>
+      {showPicker ? (
+        <>
+          <div className="wt-tabs" role="tablist" aria-label="Workout type">
+            {WORKOUT_GROUPS.map((g) => (
+              <button key={g.id} type="button" role="tab" aria-selected={group === g.id} className={group === g.id ? "on" : ""} onClick={() => setGroup(g.id)}>{g.label}</button>
+            ))}
           </div>
-          <div style={styles.successMeta}>
-            <div style={styles.successStat}>
-              <span style={styles.successStatIcon}>⚡</span>
-              <div style={styles.successStatText}>
-                <span style={styles.successStatVal}>+{pointsEarned}</span>
-                <span style={styles.successStatLbl}>Points Earned</span>
-              </div>
-            </div>
-            <div style={styles.successStat}>
-              <span style={styles.successStatIcon}>🔥</span>
-              <div style={styles.successStatText}>
-                <span style={styles.successStatVal}>{currentStreak}</span>
-                <span style={styles.successStatLbl}>Day Streak</span>
-              </div>
-            </div>
+          <div className="wt-chips" role="group" aria-label="Choose a workout">
+            {list.map((w) => (
+              <button key={w.name} type="button" onClick={() => setActivity(w.name)} aria-pressed={activityType === w.name} className={`wt-chip${activityType === w.name ? " on" : ""}`}>
+                <span className="wt-chip-name">{w.name}</span>
+              </button>
+            ))}
           </div>
-          <div style={styles.successHint}>Keep it up! Your stats have been updated.</div>
+        </>
+      ) : (
+        <div className="wt-now">
+          <span className="wt-now-dot"><Icon name="activity" size={16} /></span>
+          <strong>{activityType || "Workout"}</strong>
+          {selected && <em>{selected.group === "gym" ? "Gym" : "Home"}</em>}
         </div>
       )}
 
-      <style>{`
-        @keyframes timerSpin {
-          from { transform: translate(-50%,-50%) rotate(0deg); }
-          to   { transform: translate(-50%,-50%) rotate(360deg); }
-        }
-      `}</style>
+      {/* Error */}
+      {error && <div className="wt-error" role="alert">{error}</div>}
+
+      {/* "Still working out?" – a forgotten timer stops itself instead of piling up points */}
+      {isRunning && checkin && (
+        <div className="wt-checkin" role="alertdialog" aria-live="assertive" aria-label="Still working out?">
+          <span className="wt-checkin-text">
+            <strong>Still working out?</strong>
+            <small>Tap to keep going. The timer stops in {mmss(Math.max(0, Math.ceil((checkin.deadline - Date.now()) / 1000)))}.</small>
+          </span>
+          <button type="button" onClick={handleCheckin}>I’m here</button>
+        </div>
+      )}
+      {notice && !isRunning && <div className="wt-notice" role="status">{notice}</div>}
+
+      {showPicker && (
+        <p className="wt-rules">Every minute you train is 1 point (up to {DEFAULT_LIMITS.daily_cap} a day). We’ll ask “Still working out?” every 30 minutes.</p>
+      )}
+
+      {/* Controls */}
+      <div className="wt-controls">
+        {!isRunning ? (
+          <button onClick={handleStart} className="wt-go" style={{ "--wt": accent }} disabled={starting}>
+            <Icon name="play" size={17} /> {starting ? "Starting…" : "Start"}
+          </button>
+        ) : (
+          <button onClick={() => handleStop()} className="wt-go stop">
+            <Icon name="stop" size={17} /> Stop &amp; save
+          </button>
+        )}
+        <button onClick={handleReset} className="wt-reset" disabled={isRunning}>
+          <Icon name="reset" size={16} /> Reset
+        </button>
+      </div>
+
+      {/* Result: one short line */}
+      {saved && pointsEarned !== null && (
+        <div className="wt-done" role="status">
+          <span className="wt-done-ic"><Icon name="check" size={16} strokeWidth={3} /></span>
+          <span className="wt-done-main"><strong>Saved</strong><small>{activityType} · {hrs}:{mins}:{secs}</small></span>
+          <span className="wt-pill"><Icon name="zap" size={14} />+{pointsEarned}</span>
+          <span className="wt-pill"><Icon name="flame" size={14} />{currentStreak === null ? "…" : `${currentStreak}d`}</span>
+        </div>
+      )}
+      {saved && newBadges.length > 0 && (
+        <div className="wt-newbadges">
+          <small>{newBadges.length === 1 ? "New badge" : `${newBadges.length} new badges`}</small>
+          <BadgeStrip badges={newBadges} max={4} />
+        </div>
+      )}
     </div>
   );
 });
-
-const styles = {
-  panel: {
-    background: "linear-gradient(160deg, #07101f 0%, #0d1a35 60%, #0a1628 100%)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 24,
-    padding: "16px 20px 18px",
-    color: "#eef4ff",
-    maxWidth: 480,
-    margin: "0 auto",
-    boxShadow: "0 32px 80px rgba(0,0,0,0.55)",
-    overflowY: "auto",
-    maxHeight: "90vh",          // only ever scrolls on very short screens; layout below is sized to fit
-    boxSizing: "border-box",
-  },
-  titleRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 12,
-    justifyContent: "center",
-  },
-  titleIcon: { display: "inline-flex", color: "#c4b5fd" },
-  title: {
-    margin: 0,
-    fontSize: "1.2rem",
-    fontWeight: 800,
-    letterSpacing: "0.5px",
-    color: "#f4f8ff",
-  },
-  clockWrap: {
-    position: "relative",
-    width: "clamp(104px, 20vh, 160px)",
-    height: "clamp(104px, 20vh, 160px)",
-    margin: "0 auto 14px",
-    borderRadius: "50%",
-    border: "2px solid",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    transition: "box-shadow 0.4s ease, border-color 0.4s ease",
-    flexShrink: 0,
-  },
-  clockRing: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%,-50%)",
-    width: "calc(100% - 10px)",
-    height: "calc(100% - 10px)",
-    borderRadius: "50%",
-    border: "3px solid transparent",
-    borderTopWidth: 3,
-    borderTopStyle: "solid",
-  },
-  clockInner: { textAlign: "center", zIndex: 1 },
-  timeDisplay: { display: "flex", alignItems: "baseline", gap: 2 },
-  timeDigit: {
-    fontSize: "clamp(1.3rem, 3.4vh, 2.1rem)",
-    fontWeight: 900,
-    fontVariantNumeric: "tabular-nums",
-    color: "#f4f8ff",
-    letterSpacing: 1,
-  },
-  timeSep: { fontSize: "clamp(1.1rem, 2.6vh, 1.6rem)", fontWeight: 900, lineHeight: 1, paddingBottom: 3 },
-  timeLabel: { fontSize: "0.7rem", fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", marginTop: 4 },
-
-  activityGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",
-    gap: 6,
-    marginBottom: 12,
-  },
-  actBtn: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 3,
-    padding: "7px 4px",
-    borderRadius: 12,
-    transition: "all 0.18s ease",
-    outline: "none",
-  },
-  actIcon: { fontSize: "1.1rem" },
-  actLabel: { fontSize: "0.62rem", fontWeight: 700, letterSpacing: "0.4px" },
-
-  errorBox: {
-    background: "rgba(239,68,68,0.15)",
-    border: "1px solid rgba(239,68,68,0.3)",
-    color: "#fca5a5",
-    borderRadius: 12,
-    padding: "8px 12px",
-    marginBottom: 10,
-    fontSize: "0.88rem",
-    textAlign: "center",
-  },
-  controlRow: { display: "flex", gap: 12, marginBottom: 12 },
-  ctaBtn: {
-    flex: 1,
-    padding: "11px 0",
-    borderRadius: 14,
-    border: "none",
-    color: "#fff",
-    fontWeight: 800,
-    fontSize: "1rem",
-    cursor: "pointer",
-    letterSpacing: "0.5px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-    transition: "transform 0.15s ease, box-shadow 0.15s ease",
-  },
-  resetBtn: {
-    padding: "11px 20px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.12)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#c5d4ff",
-    fontWeight: 700,
-    fontSize: "0.9rem",
-    cursor: "pointer",
-    transition: "background 0.15s ease",
-  },
-
-  /* ── Inline reward badge shown directly below Stop & Save ── */
-  rewardBadge: {
-    background: "linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.15))",
-    border: "1px solid rgba(99,102,241,0.35)",
-    borderRadius: 16,
-    padding: "14px 16px 10px",
-    marginBottom: 14,
-    textAlign: "center",
-  },
-  rewardRow: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 0,
-    marginBottom: 8,
-  },
-  rewardItem: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 2,
-    padding: "0 24px",
-  },
-  rewardIcon: { fontSize: "1.4rem" },
-  rewardVal: {
-    fontSize: "1.7rem",
-    fontWeight: 900,
-    color: "#c7d2fe",
-    lineHeight: 1,
-    letterSpacing: "-0.02em",
-  },
-  rewardLbl: {
-    fontSize: "0.65rem",
-    fontWeight: 700,
-    color: "rgba(199,210,254,0.6)",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-  },
-  rewardDivider: {
-    width: 1,
-    height: 44,
-    background: "rgba(99,102,241,0.25)",
-    flexShrink: 0,
-  },
-  rewardHint: {
-    fontSize: "0.74rem",
-    color: "rgba(199,210,254,0.5)",
-    fontWeight: 500,
-  },
-
-  /* ── Compact result card (head row + two side-by-side stat tiles) ── */
-  successBox: {
-    background: "linear-gradient(145deg, rgba(5,150,105,0.18), rgba(16,185,129,0.1), rgba(5,150,105,0.15))",
-    border: "1px solid rgba(16,185,129,0.32)",
-    borderRadius: 18,
-    padding: "12px 14px 10px",
-    textAlign: "center",
-    boxShadow: "0 8px 32px rgba(16,185,129,0.12), 0 0 0 1px rgba(16,185,129,0.06) inset",
-  },
-  successHead: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 10 },
-  successConfetti: { fontSize: "1.9rem", lineHeight: 1 },
-  successTitle: { fontSize: "1.08rem", fontWeight: 900, color: "#6ee7b7", letterSpacing: "-0.01em", textAlign: "left", lineHeight: 1.2 },
-  successSub: { fontSize: "0.76rem", color: "rgba(167,243,208,0.65)", fontWeight: 600, textAlign: "left", marginTop: 1 },
-  successMeta: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 },
-  successStat: {
-    display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-    background: "rgba(255,255,255,0.045)", border: "1px solid rgba(16,185,129,0.18)",
-    borderRadius: 12, padding: "8px 10px",
-  },
-  successStatIcon: { fontSize: "1.4rem", lineHeight: 1 },
-  successStatText: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2 },
-  successStatVal: { fontSize: "1.45rem", fontWeight: 900, color: "#d1fae5", lineHeight: 1, letterSpacing: "-0.02em" },
-  successStatLbl: { fontSize: "0.6rem", fontWeight: 700, color: "rgba(167,243,208,0.6)", textTransform: "uppercase", letterSpacing: "0.07em" },
-  successHint: { fontSize: "0.7rem", color: "rgba(167,243,208,0.5)", textAlign: "center", fontWeight: 500 },
-};
 
 export default WorkoutTimer;

@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Home.css';
-import main_logo from './images/aivo_logo.webp';
 import API, { cachedGet } from '../services/api';
 import StreakCalendar from '../components/StreakCalendar';
 import NavIcons from '../components/NavIcons';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import Icon from '../components/Icon';
+import StreakFreeze from '../components/StreakFreeze';
+import ThemeToggle from '../components/ThemeToggle';
+import { ChallengeList, useChallenges } from '../components/Challenges';
+import { heatLevel } from '../utils/heat';
 import { prefetchFeed } from '../utils/feedCache';
 import { localDateKey, userTimeZone } from '../utils/time';
 
@@ -14,7 +17,6 @@ import { localDateKey, userTimeZone } from '../utils/time';
 // Heavy widgets that are not needed for the first paint: loaded on demand (modals) or when idle (coach)
 const loadCalorie = () => import('../components/CalorieCalculator');
 const loadTimer = () => import('../components/WorkoutTimer');
-const CalorieCalculator = lazy(loadCalorie);
 const WorkoutTimer = lazy(loadTimer);
 const AiCoach = lazy(() => import('../components/AiCoach'));
 
@@ -39,12 +41,24 @@ if (typeof window !== 'undefined') {
   window.addEventListener('logout', () => { dashMem = null; try { Object.keys(localStorage).filter((k) => k.startsWith('dash:v1:')).forEach((k) => localStorage.removeItem(k)); } catch {} });
 }
 
+// Live "Most minutes this week" race (only shown while you have a challenge going)
+const HomeChallenge = ({ refreshKey }) => {
+  const { items, reload } = useChallenges(refreshKey);
+  const live = (items || []).filter((c) => c.status === 'active' || c.status === 'pending');
+  if (!live.length) return null;
+  return (
+    <section className="home-challenge" aria-label="Friend challenge">
+      <ChallengeList items={live} reload={reload} limit={1} compact />
+    </section>
+  );
+};
+
 const WEEKLY_GOAL = 5;                       // workouts per week shown on the dashboard ring
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-const greeting = () => {
+const greeting = (demo = false) => {
   const h = new Date().getHours();
-  return h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  return h < 5 ? (demo ? 'Still awake?' : 'Still up') : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 };
 
 // Monday-first list of the 7 local date keys of the current week
@@ -60,7 +74,6 @@ const currentWeek = () => {
 const Home = () => {
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [showCalorieCalculator, setShowCalorieCalculator] = useState(false);
   const [showWorkoutTimer, setShowWorkoutTimer] = useState(false);
   const [streakKey, setStreakKey] = useState(0);
   const timerRef = useRef(null);
@@ -72,6 +85,7 @@ const Home = () => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   });
   const [liveStats, setLiveStats] = useState({ streak: null, points: null, totalWorkouts: null });
+  const [frozenDays, setFrozenDays] = useState(() => new Set(readDash()?.frozen || []));
   const [dayTotals, setDayTotals] = useState(() => readDash()?.dayTotals || null);   // { 'YYYY-MM-DD': seconds } — null only on the very first visit
 
   const firstName = userProfile?.full_name?.split(' ')[0] || 'Athlete';
@@ -113,7 +127,9 @@ const Home = () => {
         const m = {};
         (d.streak_data || []).forEach((e) => { m[e.date] = e.total_duration; });
         setDayTotals(m);
-        writeDash({ ...(readDash() || {}), dayTotals: m });
+        const fz = Array.isArray(d.frozen_dates) ? d.frozen_dates : [];
+        setFrozenDays(new Set(fz));
+        writeDash({ ...(readDash() || {}), dayTotals: m, frozen: fz });
       } catch { if (!cancelled) setDayTotals((prev) => prev || {}); }
     })();
     return () => { cancelled = true; };
@@ -172,164 +188,131 @@ const Home = () => {
     : (liveStats.streak ?? userProfile?.streak ?? 0) > 0 ? `Train today to keep your ${liveStats.streak ?? userProfile?.streak}-day streak alive.`
     : 'Log your first session today and start a streak.';
 
+  const openCoach = () => window.dispatchEvent(new Event('aivo:open-coach'));
+  const goalLeft = Math.max(0, WEEKLY_GOAL - activeThisWeek);
+
   return (
     <div className="home-container">
-      <div className="home-bg-gradient"></div>
-      <div className="home-bg-orbs">
-        <div className="orb orb-1"></div>
-        <div className="orb orb-2"></div>
-        <div className="orb orb-3"></div>
-      </div>
-
-      {/* Header */}
-      <header className="header">
-        <div className="header-content">
-          <div className="logo-section">
-            <img src={main_logo} alt="Aivo" className="main-logo" width="360" height="240" decoding="async" fetchPriority="high" />
+      <div className="home-col">
+        {/* Top bar */}
+        <header className="home-top">
+          <div className="ht-greet">
+            <p className="ht-date"><Icon name="calendar" size={14} /> {new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+            <h1>{userProfile?.is_demo ? greeting(true) : <>{greeting()}, <span className="ht-name">{firstName}</span></>}</h1>
+            <p className="ht-sub">{subline}</p>
           </div>
-          <NavIcons />
-          <div className="nav-buttons">
-            <button className="nav-button calorie-btn hide-on-mobile" onClick={() => setShowCalorieCalculator(true)} onPointerEnter={loadCalorie}>
-              <Icon name="calculator" size={16} /> Calories
-            </button>
-            <button className="nav-button leaderboard-btn hide-on-mobile" onClick={() => navigate('/leaderboard')}>
-              <Icon name="trophy" size={16} /> Leaderboard
-            </button>
-            <button className="nav-button profile-btn hide-on-mobile" onClick={() => navigate('/profile')}>
-              <Icon name="user" size={16} /> Profile
-            </button>
+          <div className="ht-actions">
+            <NavIcons />
+            <ThemeToggle className="ht-theme" />
             <button
-              className={`nav-button logout-btn ${isLoggingOut ? 'loading' : ''}`}
+              className={`nav-icon-btn ht-logout hide-on-desktop ${isLoggingOut ? 'loading' : ''}`}
               onClick={handleLogout}
               disabled={isLoggingOut}
-              aria-label="Logout"
+              aria-label="Log out"
+              title="Log out"
             >
-              <Icon name="logout" size={16} />
-              <span className="nb-label">{isLoggingOut ? 'Logging out…' : 'Logout'}</span>
+              <Icon name="logout" size={19} />
             </button>
           </div>
-        </div>
-      </header>
-      <AnnouncementBanner />
+        </header>
 
-      {/* Hero */}
-      <main className="main-content">
-        <section className="hero-section">
-          <div className="hero-text">
-            <div className="hero-badge">
-              <span className="badge-dot"></span>
-              Intelligent Fitness. Limitless You.
-            </div>
-            <h1 className="hero-title">
-              {greeting()},<br />
-              <span className="hero-name">{firstName}</span>
-            </h1>
-            <p className="hero-date"><Icon name="calendar" size={14} /> {new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' })}</p>
-            <p className="hero-subtitle">{subline}</p>
-            <div className="hero-actions">
-              <button className="cta-primary" onClick={() => setShowWorkoutTimer(true)} onPointerEnter={loadTimer}>
-                <span className="cta-icon"><Icon name="play" size={16} /></span>
-                Start Workout
-              </button>
-              <div className="quick-row">
-                <button type="button" className="quick-tile" onClick={() => setShowCalorieCalculator(true)} onPointerEnter={loadCalorie}>
-                  <span className="quick-ic"><Icon name="calculator" size={20} /></span>
-                  <span className="quick-tx">Calories</span>
-                </button>
-                <button type="button" className="quick-tile" onClick={() => navigate('/leaderboard')}>
-                  <span className="quick-ic"><Icon name="trophy" size={20} /></span>
-                  <span className="quick-tx">Leaderboard</span>
-                </button>
-              </div>
-              <button className="cta-secondary hide-on-mobile" onClick={() => navigate('/progress')}>
-                <span className="cta-icon"><Icon name="progress" size={16} /></span>
-                View Progress
-              </button>
-              <button className="cta-secondary hide-on-mobile" onClick={() => navigate('/community')}
-                onMouseEnter={warmCommunity} onTouchStart={warmCommunity} onFocus={warmCommunity}>
-                <span className="cta-icon"><Icon name="users" size={16} /></span>
-                Community
-              </button>
-            </div>
-          </div>
+        <AnnouncementBanner />
 
-          <div className="hero-visual">
-            <div className="hero-card-glow"></div>
-            <div className="dash-card">
-              <div className="dash-top">
-                <div className="dash-ring" aria-label={`${activeThisWeek} of ${WEEKLY_GOAL} workouts this week`}>
-                  {dayTotals ? (
-                    <>
-                      <svg viewBox="0 0 128 128" width="132" height="132">
-                        <circle cx="64" cy="64" r={RING_R} className="ring-track" />
-                        <circle cx="64" cy="64" r={RING_R} className="ring-fill" strokeDasharray={RING_C}
-                          strokeDashoffset={RING_C * (1 - ringPct)} transform="rotate(-90 64 64)" />
-                      </svg>
-                      <div className="ring-center">
-                        <b>{activeThisWeek}<small>/{WEEKLY_GOAL}</small></b>
-                        <span>this week</span>
-                      </div>
-                    </>
-                  ) : <div className="sk" style={{ width: 132, height: 132, borderRadius: '50%' }} />}
-                </div>
-                <div className="dash-today">
-                  <span className="dash-eyebrow">Weekly goal</span>
-                  <strong>{activeThisWeek >= WEEKLY_GOAL ? 'Goal reached!' : `${Math.max(0, WEEKLY_GOAL - activeThisWeek)} more to go`}</strong>
-                  <span className="dash-today-line"><Icon name="timer" size={14} /> {dayTotals ? `${todayMin} min today` : '…'}</span>
-                </div>
+        <main className="home-main">
+          {/* This week — the focus of the page */}
+          <section className="today-card card">
+            <div className="tc-ring" aria-label={`${activeThisWeek} of ${WEEKLY_GOAL} workouts this week`}>
+              {dayTotals ? (
+                <>
+                  <svg viewBox="0 0 128 128" width="100%" height="100%">
+                    <circle cx="64" cy="64" r={RING_R} className="ring-track" />
+                    <circle cx="64" cy="64" r={RING_R} className="ring-fill" strokeDasharray={RING_C}
+                      strokeDashoffset={RING_C * (1 - ringPct)} transform="rotate(-90 64 64)" />
+                  </svg>
+                  <div className="ring-center">
+                    <b>{activeThisWeek}<small>/{WEEKLY_GOAL}</small></b>
+                    <span>workouts</span>
+                  </div>
+                </>
+              ) : <div className="sk" style={{ width: '100%', height: '100%', borderRadius: '50%' }} />}
+            </div>
+
+            <div className="tc-body">
+              <div className="tc-head">
+                <h2>{activeThisWeek >= WEEKLY_GOAL ? 'Weekly goal reached' : `${goalLeft} more to hit your weekly goal`}</h2>
+                <span className="chip"><Icon name="timer" size={13} /> {dayTotals ? `${todayMin} min today` : '…'}</span>
               </div>
 
               <div className="week-strip">
                 {week.map((k, i) => {
                   const done = dayTotals && (dayTotals[k] || 0) > 0;
+                  const lvl = done ? heatLevel(dayTotals[k]) : null;     // same colour steps as the streak calendar
+                  const frozen = !done && frozenDays.has(k);
                   return (
-                    <div key={k} className={`week-day ${done ? 'done' : ''} ${k === todayKey ? 'today' : ''}`}>
-                      <span className="week-dot">{done ? <Icon name="check" size={13} strokeWidth={3} /> : null}</span>
+                    <div key={k} className={`week-day ${done ? 'done' : ''} ${frozen ? 'frozen' : ''} ${k === todayKey ? 'today' : ''}`} title={frozen ? 'Rest day (streak freeze)' : undefined}>
+                      <span className={`week-dot${lvl ? ` heat-${lvl}` : ''}`}>{done ? <Icon name="check" size={14} strokeWidth={3} /> : frozen ? <Icon name="snow" size={14} /> : null}</span>
                       <span className="week-letter">{DAY_LETTERS[i]}</span>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="stats-row">
-                {stats.map((s) => (
-                  <div key={s.label} className="stat-chip">
-                    <span className="stat-icon"><Icon name={s.icon} size={18} /></span>
-                    {s.value === null ? <span className="sk" style={{ width: 34, height: 20 }} /> : <span className="stat-value">{s.value}</span>}
-                    <span className="stat-label">{s.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
+              <StreakFreeze refreshKey={streakKey} onChange={handleWorkoutComplete} />
 
-        {/* Streak Calendar - Premium */}
-        <section className="streak-section">
-          <StreakCalendar token={token} refreshKey={streakKey} />
-        </section>
-      </main>
+              <button className="cta-primary" onClick={() => setShowWorkoutTimer(true)} onPointerEnter={loadTimer}>
+                <Icon name="play" size={18} />
+                Start workout
+              </button>
+            </div>
+          </section>
+
+          {/* Totals */}
+          <section className="stats-row" aria-label="Your totals">
+            {stats.map((s) => (
+              <div key={s.label} className={`stat-chip stat-${s.label.toLowerCase()}`}>
+                <span className="stat-icon"><Icon name={s.icon} size={20} /></span>
+                <span className="stat-text">
+                  {s.value === null ? <span className="sk" style={{ width: 44, height: 24 }} /> : <span className="stat-value">{s.value}</span>}
+                  <span className="stat-label">{s.label}</span>
+                </span>
+              </div>
+            ))}
+          </section>
+
+          <HomeChallenge refreshKey={streakKey} />
+
+          {/* Phone-only shortcuts: on desktop the sidebar already has every one of these */}
+          <section className="quick-row" aria-label="Shortcuts">
+            <button type="button" className="quick-tile qt-ai" onClick={openCoach}>
+              <span className="quick-ic"><Icon name="bot" size={20} /></span>
+              <span className="quick-tx"><strong>AI coach</strong><small>Plans &amp; form tips</small></span>
+            </button>
+            <button type="button" className="quick-tile" onClick={() => window.dispatchEvent(new Event('aivo:open-calc'))} onPointerEnter={loadCalorie}>
+              <span className="quick-ic"><Icon name="calculator" size={20} /></span>
+              <span className="quick-tx"><strong>Calories</strong><small>Daily target</small></span>
+            </button>
+            <button type="button" className="quick-tile" onClick={() => navigate('/leaderboard')}>
+              <span className="quick-ic"><Icon name="trophy" size={20} /></span>
+              <span className="quick-tx"><strong>Leaderboard</strong><small>Your rank</small></span>
+            </button>
+          </section>
+
+          {/* Streak calendar */}
+          <section className="streak-section">
+            <StreakCalendar token={token} refreshKey={streakKey} />
+          </section>
+        </main>
+      </div>
 
       {/* Floating AI coach — sits beside the streak calendar and follows you as you scroll */}
       <Suspense fallback={null}><AiCoach /></Suspense>
 
-      {/* Calorie Calculator Modal */}
-      {showCalorieCalculator && (
-        <div className="modal-overlay" onClick={() => setShowCalorieCalculator(false)}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setShowCalorieCalculator(false)}>×</button>
-            <Suspense fallback={<div className="modal-loading"><span className="route-spinner" /></div>}>
-              <CalorieCalculator token={token} profile={userProfile} />
-            </Suspense>
-          </div>
-        </div>
-      )}
 
       {/* Workout Timer Modal */}
       {showWorkoutTimer && (
         <div className="modal-overlay" onClick={closeTimer}>
           <div className="modal-box timer-modal" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeTimer} aria-label="Close timer">×</button>
+            <button className="modal-close" onClick={closeTimer} aria-label="Close timer"><Icon name="x" size={16} /></button>
             <Suspense fallback={<div className="modal-loading"><span className="route-spinner" /></div>}>
               <WorkoutTimer ref={timerRef} token={token} onWorkoutComplete={handleWorkoutComplete} onClose={() => setShowWorkoutTimer(false)} />
             </Suspense>

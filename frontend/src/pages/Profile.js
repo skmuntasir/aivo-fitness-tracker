@@ -2,8 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Profile.css';
 import API from '../services/api';
-import BackButton from '../components/BackButton';
+import Icon from '../components/Icon';
 import { useFeedback } from '../components/Feedback';
+import BackButton from '../components/BackButton';
+import { BadgeGrid } from '../components/Badges';
+import SavedPlans from '../components/SavedPlans';
+import ThemeToggle from '../components/ThemeToggle';
 
 
 // Compress image to base64 (max 400px, quality 0.75)
@@ -58,9 +62,11 @@ const Profile = () => {
     return uid ? (localStorage.getItem(`profilePic_${uid}`) || null) : null;
   });
   const [picUploading, setPicUploading] = useState(false);
+  const [badges, setBadges] = useState(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => { fetchUserData(); }, []);
+  useEffect(() => { API.get('/badges').then((r) => setBadges(r.data)).catch(() => setBadges({ badges: [], earned_count: 0, total: 0 })); }, []);
 
   const fetchUserData = async () => {
     const token = localStorage.getItem('token');
@@ -90,9 +96,9 @@ const Profile = () => {
 
   const parseJoinedDate = () => {
     const rawDate = userData?.created_at || userData?.joined_at;
-    if (!rawDate) return 'Joined recently';
+    if (!rawDate) return 'recently';
     const date = new Date(rawDate);
-    return isNaN(date.getTime()) ? 'Joined recently' : date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    return isNaN(date.getTime()) ? 'recently' : date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const goalProgress = () => {
@@ -180,7 +186,7 @@ const Profile = () => {
     <div className="profile-page">
       <div className="home-bg-gradient"></div>
       <div className="home-bg-orbs"><div className="orb orb-1"></div><div className="orb orb-2"></div><div className="orb orb-3"></div></div>
-      <div className="profile-loading"><div className="loading-spinner"/><p>Loading your profile...</p></div>
+      <div className="profile-loading"><div className="loading-spinner"/><p>Loading your profile</p></div>
     </div>
   );
 
@@ -189,8 +195,8 @@ const Profile = () => {
       <div className="home-bg-gradient"></div>
       <div className="home-bg-orbs"><div className="orb orb-1"></div><div className="orb orb-2"></div><div className="orb orb-3"></div></div>
       <BackButton />
-      <div className="profile-error glass-panel">
-        <h2>⚠️ Error</h2><p>{error}</p>
+      <div className="profile-error card">
+        <h2>Something went wrong</h2><p>{error}</p>
         <div style={{display:'flex',gap:12,marginTop:16}}>
           <button className="prof-btn-primary" onClick={fetchUserData}>Try Again</button>
           <button className="prof-btn-secondary" onClick={() => navigate('/home')}>Go Home</button>
@@ -203,19 +209,9 @@ const Profile = () => {
 
   return (
     <div className="profile-page">
-      {/* Background matching Home page */}
-      <div className="home-bg-gradient"></div>
-      <div className="home-bg-orbs">
-        <div className="orb orb-1"></div>
-        <div className="orb orb-2"></div>
-        <div className="orb orb-3"></div>
-      </div>
-
-      <BackButton />
-
       <div className="profile-content">
         {/* ── HERO CARD ── */}
-        <div className="prof-hero glass-panel">
+        <div className="prof-hero card">
           <div className="prof-hero-inner">
             {/* Avatar with upload */}
             <div className="prof-avatar-wrap">
@@ -225,16 +221,15 @@ const Profile = () => {
                   : <span className="prof-avatar-initial">{userData?.full_name?.charAt(0) || 'U'}</span>
                 }
                 <div className="prof-avatar-overlay">
-                  {picUploading ? '⏳' : '📷'}
+                  {picUploading ? <span className="loading-spinner" /> : <Icon name="camera" size={22} />}
                 </div>
               </div>
               <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={handlePicChange}/>
-              <span className="prof-avatar-hint">Click to change photo</span>
+              <span className="prof-avatar-hint">Change photo</span>
             </div>
 
             {/* Name & info */}
             <div className="prof-hero-info">
-              <span className="pg-eyebrow">PROFILE DASHBOARD</span>
               <h1 className="prof-name">{userData?.full_name || 'Fitness Member'}</h1>
               <p className="prof-tagline">
                 {userData?.fitness_goals?.length
@@ -242,16 +237,15 @@ const Profile = () => {
                   : 'A dedicated fitness enthusiast building strength and momentum.'}
               </p>
               <div className="prof-meta-row">
-                <span className="prof-meta-chip">🗓 {parseJoinedDate()}</span>
-                {userData?.fitness_level && <span className="prof-meta-chip">🏋️ {userData.fitness_level}</span>}
-                {userData?.age && <span className="prof-meta-chip">🎂 Age {userData.age}</span>}
+                <span className="prof-meta-chip"><Icon name="calendar" size={14} /> Joined {parseJoinedDate()}</span>
+                {userData?.fitness_level && <span className="prof-meta-chip"><Icon name="activity" size={14} /> {userData.fitness_level}</span>}
+                {userData?.age && <span className="prof-meta-chip"><Icon name="user" size={14} /> Age {userData.age}</span>}
               </div>
             </div>
 
             {/* Action buttons */}
             <div className="prof-hero-actions">
-              <button className="prof-btn-primary" onClick={openEdit}>✏️ Edit Profile</button>
-              <button className="prof-btn-danger" onClick={() => setShowDeleteConfirm(true)}>🗑 Delete Account</button>
+              <button className="prof-btn-primary" onClick={openEdit}><Icon name="edit" size={16} /> Edit profile</button>
             </div>
           </div>
 
@@ -259,46 +253,46 @@ const Profile = () => {
           <div className="prof-quick-stats">
             <div className="prof-qs-item">
               <span className="prof-qs-val">{userData?.streak ?? 0}</span>
-              <span className="prof-qs-lbl">🔥 Day Streak</span>
+              <span className="prof-qs-lbl">Day streak</span>
             </div>
             <div className="prof-qs-divider"/>
             <div className="prof-qs-item">
               <span className="prof-qs-val">{userData?.points ?? 0}</span>
-              <span className="prof-qs-lbl">⚡ Points</span>
+              <span className="prof-qs-lbl">Points</span>
             </div>
             <div className="prof-qs-divider"/>
             <div className="prof-qs-item">
               <span className="prof-qs-val">{userData?.workouts_completed ?? 0}</span>
-              <span className="prof-qs-lbl">💪 Workouts</span>
+              <span className="prof-qs-lbl">Workouts</span>
             </div>
             <div className="prof-qs-divider"/>
             <div className="prof-qs-item">
               <span className="prof-qs-val">{weeklyCalories ? `${weeklyCalories.toLocaleString()}` : '—'}</span>
-              <span className="prof-qs-lbl">🔥 Weekly kcal</span>
+              <span className="prof-qs-lbl">Weekly kcal</span>
             </div>
           </div>
         </div>
 
         {/* ── STATS GRID ── */}
         <div className="prof-grid">
-          {/* Body Stats */}
-          <div className="prof-card glass-panel">
+          {/* Body */}
+          <div className="prof-card card">
             <div className="prof-card-header">
-              <span className="prof-card-icon">⚖️</span>
+              <span className="prof-card-icon"><Icon name="target" size={20} /></span>
               <div>
-                <div className="prof-card-title">Body Stats</div>
+                <div className="prof-card-title">Body</div>
                 <div className="prof-card-sub">Your current measurements</div>
               </div>
             </div>
             <div className="prof-stat-grid">
               {[
-                { label: 'Height', val: userData?.height ? cmToFeetInches(userData.height) : '—', icon: '📏' },
-                { label: 'Current Weight', val: userData?.weight ? `${Math.round(userData.weight)} kg` : '—', icon: '⚖️' },
-                { label: 'Target Weight', val: userData?.target_weight ? `${Math.round(userData.target_weight)} kg` : '—', icon: '🎯' },
-                { label: 'Gender', val: userData?.gender || '—', icon: '👤' },
+                { label: 'Height', val: userData?.height ? cmToFeetInches(userData.height) : '—', icon: 'activity' },
+                { label: 'Current Weight', val: userData?.weight ? `${Math.round(userData.weight)} kg` : '—', icon: 'target' },
+                { label: 'Target Weight', val: userData?.target_weight ? `${Math.round(userData.target_weight)} kg` : '—', icon: 'flag' },
+                { label: 'Gender', val: userData?.gender || '—', icon: 'user' },
               ].map(item => (
                 <div key={item.label} className="prof-stat-block">
-                  <span className="prof-stat-icon">{item.icon}</span>
+                  <span className="prof-stat-icon"><Icon name={item.icon} size={17} /></span>
                   <strong className="prof-stat-val">{item.val}</strong>
                   <span className="prof-stat-lbl">{item.label}</span>
                 </div>
@@ -309,8 +303,8 @@ const Profile = () => {
             {userData?.weight && userData?.target_weight && (
               <div className="prof-goal-bar-wrap">
                 <div className="prof-goal-bar-labels">
-                  <span>Goal Progress</span>
-                  <span style={{color:'#818cf8'}}>{gp}%</span>
+                  <span>Progress to target weight</span>
+                  <span className="prof-goal-pct">{gp}%</span>
                 </div>
                 <div className="prof-goal-bar-track">
                   <div className="prof-goal-bar-fill" style={{width:`${gp}%`}}/>
@@ -319,23 +313,23 @@ const Profile = () => {
             )}
           </div>
 
-          {/* Health Metrics */}
-          <div className="prof-card glass-panel">
+          {/* Health metrics */}
+          <div className="prof-card card">
             <div className="prof-card-header">
-              <span className="prof-card-icon">🧠</span>
+              <span className="prof-card-icon"><Icon name="activity" size={20} /></span>
               <div>
-                <div className="prof-card-title">Health Metrics</div>
-                <div className="prof-card-sub">AI-calculated from your profile</div>
+                <div className="prof-card-title">Health metrics</div>
+                <div className="prof-card-sub">Calculated from your profile</div>
               </div>
             </div>
             {showMetrics && healthMetrics ? (
               <div className="prof-metric-list">
                 {[
-                  { label: 'BMI', val: healthMetrics.bmi, color: '#818cf8' },
-                  { label: 'Body Fat', val: `${healthMetrics.bfp}%`, color: '#f472b6' },
-                  { label: 'Category', val: healthMetrics.bmi_category, color: '#34d399' },
-                  { label: 'BMR (daily)', val: healthMetrics.bmr ? `${Math.round(healthMetrics.bmr)} kcal` : '—', color: '#fb923c' },
-                  { label: 'Weekly Burn Est.', val: weeklyCalories ? `${weeklyCalories.toLocaleString()} kcal` : '—', color: '#fbbf24' },
+                  { label: 'BMI', val: healthMetrics.bmi, color: 'var(--info)' },
+                  { label: 'Body Fat', val: `${healthMetrics.bfp}%`, color: 'var(--heat)' },
+                  { label: 'Category', val: healthMetrics.bmi_category, color: 'var(--go)' },
+                  { label: 'BMR (per day)', val: healthMetrics.bmr ? `${Math.round(healthMetrics.bmr)} kcal` : '—', color: 'var(--heat)' },
+                  { label: 'Weekly burn (est.)', val: weeklyCalories ? `${weeklyCalories.toLocaleString()} kcal` : '—', color: 'var(--brand)' },
                 ].map(m => (
                   <div key={m.label} className="prof-metric-row">
                     <span className="prof-metric-lbl">{m.label}</span>
@@ -344,33 +338,33 @@ const Profile = () => {
                 ))}
               </div>
             ) : (
-              <p className="prof-hint-text">Toggle to reveal your BMI, body fat percentage, and calorie estimates.</p>
+              <p className="prof-hint-text">Show your BMI, body fat estimate and daily calorie needs.</p>
             )}
             <button className="prof-btn-secondary" onClick={() => setShowMetrics(p => !p)}>
-              {showMetrics ? '🙈 Hide Metrics' : '📊 Show Metrics'}
+              {showMetrics ? 'Hide metrics' : 'Show metrics'}
             </button>
           </div>
 
-          {/* Fitness Snapshot */}
-          <div className="prof-card glass-panel">
+          {/* Training */}
+          <div className="prof-card card">
             <div className="prof-card-header">
-              <span className="prof-card-icon">🏃</span>
+              <span className="prof-card-icon"><Icon name="flag" size={20} /></span>
               <div>
-                <div className="prof-card-title">Fitness Snapshot</div>
-                <div className="prof-card-sub">Goals & preferences</div>
+                <div className="prof-card-title">Training</div>
+                <div className="prof-card-sub">Goals and preferences</div>
               </div>
             </div>
             <div className="prof-snapshot-list">
               <div className="prof-snapshot-item">
-                <span>Main Goals</span>
+                <span>Goals</span>
                 <strong>{userData?.fitness_goals?.join(', ') || 'Not set'}</strong>
               </div>
               <div className="prof-snapshot-item">
-                <span>Fitness Level</span>
+                <span>Level</span>
                 <strong>{userData?.fitness_level || '—'}</strong>
               </div>
               <div className="prof-snapshot-item">
-                <span>Preferred Units</span>
+                <span>Units</span>
                 <strong>{userData?.preferred_units === 'imperial' ? 'Imperial' : 'Metric'}</strong>
               </div>
               {userData?.medical_conditions && (
@@ -382,48 +376,83 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* Performance */}
-          <div className="prof-card glass-panel">
+          {/* Achievements */}
+          <div className="prof-card card">
             <div className="prof-card-header">
-              <span className="prof-card-icon">🏆</span>
+              <span className="prof-card-icon"><Icon name="trophy" size={20} /></span>
               <div>
-                <div className="prof-card-title">Performance</div>
-                <div className="prof-card-sub">Your fitness achievements</div>
+                <div className="prof-card-title">Achievements</div>
+                <div className="prof-card-sub">Your totals so far</div>
               </div>
             </div>
             <div className="prof-perf-grid">
               {[
-                { label: 'Workouts Done', val: userData?.workouts_completed ?? 0, icon: '💪', color: '#818cf8' },
-                { label: 'Day Streak', val: userData?.streak ?? 0, icon: '🔥', color: '#f472b6' },
-                { label: 'Total Points', val: (userData?.points ?? 0).toLocaleString(), icon: '⚡', color: '#fbbf24' },
-                { label: 'Weekly kcal', val: weeklyCalories ? weeklyCalories.toLocaleString() : '—', icon: '🔥', color: '#34d399' },
+                { label: 'Workouts done', val: userData?.workouts_completed ?? 0, icon: 'activity', color: '#5cb6ff' },
+                { label: 'Day streak', val: userData?.streak ?? 0, icon: 'flame', color: '#ff7a45' },
+                { label: 'Total points', val: (userData?.points ?? 0).toLocaleString(), icon: 'zap', color: '#fbbf24' },
+                { label: 'Weekly kcal', val: weeklyCalories ? weeklyCalories.toLocaleString() : '—', icon: 'flame', color: '#38d79f' },
               ].map(p => (
                 <div key={p.label} className="prof-perf-card" style={{'--accent': p.color}}>
-                  <span className="prof-perf-icon">{p.icon}</span>
+                  <span className="prof-perf-icon"><Icon name={p.icon} size={18} /></span>
                   <strong className="prof-perf-val" style={{color: p.color}}>{p.val}</strong>
                   <span className="prof-perf-lbl">{p.label}</span>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Badges & achievements */}
+          <div className="prof-card card prof-wide">
+            <div className="prof-card-header">
+              <span className="prof-card-icon"><Icon name="award" size={20} /></span>
+              <div>
+                <div className="prof-card-title">Badges</div>
+                <div className="prof-card-sub">Earned by training, not by clicking</div>
+              </div>
+              {badges && badges.total > 0 && <span className="bd-count">{badges.earned_count}/{badges.total}</span>}
+            </div>
+            {badges === null ? <div className="sk" style={{ height: 96 }} /> : <BadgeGrid badges={badges.badges || []} />}
+          </div>
+
+          <SavedPlans />
+
+          {/* Appearance */}
+          <div className="prof-card card prof-wide">
+            <div className="prof-card-header">
+              <span className="prof-card-icon"><Icon name="sun" size={20} /></span>
+              <div>
+                <div className="prof-card-title">Appearance</div>
+                <div className="prof-card-sub">Choose a light or dark look for the app</div>
+              </div>
+            </div>
+            <ThemeToggle variant="switch" />
+          </div>
+        </div>
+
+        <div className="prof-account card">
+          <div>
+            <div className="prof-card-title">Delete account</div>
+            <div className="prof-card-sub">Permanently remove your profile, workouts and posts.</div>
+          </div>
+          <button className="prof-btn-danger" onClick={() => setShowDeleteConfirm(true)}><Icon name="trash" size={16} /> Delete account</button>
         </div>
       </div>
 
       {/* ── EDIT MODAL ── */}
       {showEditModal && (
         <div className="prof-modal-overlay" onClick={() => setShowEditModal(false)}>
-          <div className="prof-modal glass-panel" onClick={e => e.stopPropagation()}>
+          <div className="prof-modal card" onClick={e => e.stopPropagation()}>
             <div className="prof-modal-header">
-              <h2>✏️ Edit Profile</h2>
-              <button className="prof-modal-close" onClick={() => setShowEditModal(false)}>✕</button>
+              <h2>Edit profile</h2>
+              <button className="prof-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close"><Icon name="x" size={18} /></button>
             </div>
             <div className="prof-modal-body">
               {[
-                { label: 'Full Name', key: 'full_name', type: 'text' },
+                { label: 'Full name', key: 'full_name', type: 'text' },
                 { label: 'Age', key: 'age', type: 'number' },
                 { label: 'Weight (kg)', key: 'weight', type: 'number' },
               
-                { label: 'Target Weight (kg)', key: 'target_weight', type: 'number' },
+                { label: 'Target weight (kg)', key: 'target_weight', type: 'number' },
               ].map(field => (
                 <div key={field.key} className="prof-form-group">
                   <label>{field.label}</label>
@@ -463,7 +492,7 @@ const Profile = () => {
                 </select>
               </div>
               <div className="prof-form-group">
-                <label>Fitness Level</label>
+                <label>Fitness level</label>
                 <select value={editForm.fitness_level || ''} onChange={e => setEditForm(p => ({...p, fitness_level: e.target.value}))} className="prof-form-input">
                   <option value="">Select level</option>
                   <option value="Beginner">Beginner</option>
@@ -475,7 +504,7 @@ const Profile = () => {
             <div className="prof-modal-footer">
               <button className="prof-btn-secondary" onClick={() => setShowEditModal(false)}>Cancel</button>
               <button className="prof-btn-primary" onClick={handleEditSave} disabled={editLoading}>
-                {editLoading ? 'Saving…' : '💾 Save Changes'}
+                {editLoading ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           </div>
@@ -485,14 +514,14 @@ const Profile = () => {
       {/* ── DELETE CONFIRM MODAL ── */}
       {showDeleteConfirm && (
         <div className="prof-modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="prof-modal glass-panel" onClick={e => e.stopPropagation()}>
+          <div className="prof-modal card" onClick={e => e.stopPropagation()}>
             <div className="prof-modal-header">
-              <h2>🗑 Delete Account</h2>
-              <button className="prof-modal-close" onClick={() => setShowDeleteConfirm(false)}>✕</button>
+              <h2>Delete account</h2>
+              <button className="prof-modal-close" onClick={() => setShowDeleteConfirm(false)} aria-label="Close"><Icon name="x" size={18} /></button>
             </div>
             <div className="prof-modal-body">
               <div className="prof-delete-warning">
-                <p>⚠️ This action is <strong>permanent and irreversible</strong>. All your data, workouts, and progress will be deleted from our servers.</p>
+                <p><Icon name="alert" size={18} /> <span>This is <strong>permanent</strong>. Your data, workouts and progress will be deleted from our servers.</span></p>
               </div>
               <div className="prof-form-group">
                 <label>Type <strong>DELETE</strong> to confirm:</label>
@@ -512,7 +541,7 @@ const Profile = () => {
                 onClick={handleDeleteAccount}
                 disabled={deleteInput !== 'DELETE' || deleteLoading}
               >
-                {deleteLoading ? 'Deleting…' : '🗑 Delete My Account'}
+                {deleteLoading ? 'Deleting…' : 'Delete my account'}
               </button>
             </div>
           </div>

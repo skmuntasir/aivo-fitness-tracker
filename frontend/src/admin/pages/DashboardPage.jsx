@@ -5,10 +5,10 @@ import ADMIN from '../adminApi';
 import { Avatar, Badge, Card, Empty, ErrorBox, PageHeader, Spinner, Stat, fmtDate, fmtNum, useFetch } from '../ui';
 import Icon from '../Icon';
 
-const COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
+const COLORS = ['#8b5cf6', '#60a5fa', '#34d399', '#fbbf24', '#f87171', '#c084fc', '#fb923c', '#7a809f'];
 const pct = (now, prev) => (prev ? Math.round(((now - prev) / prev) * 100) : now ? 100 : 0);
 const tick = { fontSize: 11, fill: '#94a3b8' };
-const tooltipStyle = { borderRadius: 10, border: '1px solid #e4e8f0', fontSize: 12 };
+const tooltipStyle = { borderRadius: 12, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12 };
 const shortDay = (d) => d.slice(5).replace('-', '/');
 
 function Donut({ data }) {
@@ -75,16 +75,16 @@ export default function DashboardPage() {
                 <ResponsiveContainer>
                   <AreaChart data={charts.data.series}>
                     <defs>
-                      <linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.35} /><stop offset="100%" stopColor="#6366f1" stopOpacity={0} /></linearGradient>
-                      <linearGradient id="gu" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#06b6d4" stopOpacity={0.3} /><stop offset="100%" stopColor="#06b6d4" stopOpacity={0} /></linearGradient>
+                      <linearGradient id="gw" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8b5cf6" stopOpacity={0.35} /><stop offset="100%" stopColor="#8b5cf6" stopOpacity={0} /></linearGradient>
+                      <linearGradient id="gu" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#60a5fa" stopOpacity={0.3} /><stop offset="100%" stopColor="#60a5fa" stopOpacity={0} /></linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#94a3b822" vertical={false} />
                     <XAxis dataKey="date" tickFormatter={shortDay} tick={tick} interval="preserveStartEnd" minTickGap={24} />
                     <YAxis tick={tick} allowDecimals={false} width={32} />
                     <Tooltip contentStyle={tooltipStyle} labelFormatter={(l) => fmtDate(l)} />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-                    <Area type="monotone" dataKey="workouts" name="Workouts" stroke="#6366f1" fill="url(#gw)" strokeWidth={2} />
-                    <Area type="monotone" dataKey="active_users" name="Active members" stroke="#06b6d4" fill="url(#gu)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="workouts" name="Workouts" stroke="#8b5cf6" fill="url(#gw)" strokeWidth={2} />
+                    <Area type="monotone" dataKey="active_users" name="Active members" stroke="#60a5fa" fill="url(#gu)" strokeWidth={2} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -97,7 +97,7 @@ export default function DashboardPage() {
                     <XAxis dataKey="date" tickFormatter={shortDay} tick={tick} interval="preserveStartEnd" minTickGap={24} />
                     <YAxis tick={tick} allowDecimals={false} width={28} />
                     <Tooltip contentStyle={tooltipStyle} labelFormatter={(l) => fmtDate(l)} />
-                    <Bar dataKey="signups" name="Signups" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="signups" name="Signups" fill="#34d399" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

@@ -1,29 +1,168 @@
-/* Shared design tokens — one accent colour for the whole member app.
-   Change these and every page that uses them (theme.css, chat, bottom nav, dashboard) follows. */
+/* ═══════════════════════════════════════════════════════════════
+   Aivo design tokens + base.
+   Direction: the original Aivo look — deep navy surfaces, an indigo→violet brand gradient, soft glass cards.
+   Roles: brand (violet) for primary actions + focus, ai (fuchsia) for the AI coach only, gold for points / rank / warnings,
+   ember orange for streaks, green for "good / live / done". Everything else is neutral navy ink.
+   Change a value here and every member page follows.
+   ═══════════════════════════════════════════════════════════════ */
 :root {
-  --accent: #7c3aed;
+  color-scheme: dark;
+
+  --font-display: 'Bricolage Grotesque Variable', 'Figtree Variable', system-ui, sans-serif;
+  --font-body: 'Figtree Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* ── shade scales ─────────────────────────────────────────────
+     graphite = page + cards, charcoal = raised / neutral chrome, plum = deep-purple panels & accents */
+  --graphite-950: #07080d;
+  --graphite-900: #0b0c12;
+  --graphite-850: #10111a;
+  --graphite-800: #151623;
+  --graphite-700: #1d1f2e;
+  --graphite-600: #292c40;
+  --charcoal-900: #14141c;
+  --charcoal-800: #1a1a24;
+  --charcoal-700: #232330;
+  --charcoal-600: #2f2f40;
+  --plum-950: #0e0920;
+  --plum-900: #150e30;
+  --plum-800: #1d1442;
+  --plum-700: #2a1d5e;
+  --plum-600: #3a2a82;
+  --plum-500: #4d3a9f;
+
+  /* surfaces */
+  --bg: var(--graphite-900);
+  --surface: var(--graphite-850);
+  --raised: var(--graphite-800);
+  --hover: #1f2133;
+  --line: #22243a;
+  --line-strong: #33375a;
+  --nav-bg: linear-gradient(180deg, var(--charcoal-900) 0%, #11101c 55%, var(--plum-900) 100%);
+  --panel-plum: var(--nav-bg);            /* same charcoal → deep-purple as the sidebar */
+  --panel-plum-line: var(--line);
+  --panel-card: linear-gradient(160deg, rgba(58, 42, 130, 0.16) 0%, rgba(29, 20, 66, 0.05) 55%, transparent 100%);
+
+  /* text */
+  --text: #eef0fa;
+  --muted: #a3acce;
+  --faint: #7a809f;
+
+  /* colour roles */
+  --brand: #8b5cf6;            /* violet — flat fills, borders, focus */
+  --brand-hi: #a78bfa;
+  --brand-text: #c4b5fd;
+  --brand-soft: rgba(139, 92, 246, 0.15);
+  --brand-ring: rgba(139, 92, 246, 0.40);
+  --brand-glow: rgba(124, 58, 237, 0.38);
+  --brand-grad: linear-gradient(135deg, #5b6dce 0%, #7c5cbf 55%, #9d4bd0 100%);       /* primary buttons, active tabs, sent bubbles */
+  --brand-grad-hi: linear-gradient(135deg, #6b7de0 0%, #8d6bd2 55%, #ae5be2 100%);    /* hover */
+  --text-grad: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);        /* gradient headline words */
+  --on-brand: #ffffff;         /* text sitting on a brand surface */
+  --ai: #d08bff;               /* AI coach only */
+  --ai-soft: rgba(208, 139, 255, 0.15);
+  --gold: #fbbf24;             /* points, rank #1, warnings */
+  --gold-soft: rgba(251, 191, 36, 0.14);
+  --go: #34d399;
+  --go-soft: rgba(52, 211, 153, 0.14);
+  --heat: #fb923c;
+  --heat-soft: rgba(251, 146, 60, 0.15);
+  --alert: #f87171;
+  --alert-soft: rgba(248, 113, 113, 0.14);
+  --info: #60a5fa;
+
+  /* shape + motion */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-xl: 28px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --shadow-pop: 0 24px 60px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 10px 28px rgba(109, 40, 217, 0.34);
+
+  /* layout */
+  --side-w: 248px;
+  --bar-h: 64px;
+
+  /* legacy names still read by older components */
+  --accent: var(--brand);
   --accent-strong: #6d28d9;
-  --accent-light: #a78bfa;
-  --accent-text: #c4b5fd;
-  --accent-soft: rgba(124, 58, 237, 0.14);
-  --accent-ring: rgba(139, 92, 246, 0.2);
-  --accent-glow: rgba(109, 40, 217, 0.38);
-  --ok: #22c55e;
-  --danger: #ef4444;
-  --muted: #8a9bc0;
+  --accent-light: var(--brand-hi);
+  --accent-text: var(--brand-text);
+  --accent-soft: var(--brand-soft);
+  --accent-ring: var(--brand-ring);
+  --ok: var(--go);
+  --danger: var(--alert);
   --surface-1: rgba(255, 255, 255, 0.04);
   --surface-2: rgba(255, 255, 255, 0.07);
-  --line: rgba(255, 255, 255, 0.09);
+  --bg-dark: var(--bg);
+  --text-primary: var(--text);
+  --text-muted: var(--muted);
+  --text-faint: var(--faint);
+  --border-soft: var(--line);
+  --border-strong: var(--line-strong);
+  --radius: var(--r-lg);
 }
 
-/* Skeleton shimmer used by loading placeholders */
-.sk { position: relative; overflow: hidden; border-radius: 10px; background: rgba(255, 255, 255, 0.06); }
-.sk::after {
-  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.09), transparent);
-  animation: skShimmer 1.3s infinite;
+html { background: var(--bg); }
+html, body, #root { min-height: 100%; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  background:
+    radial-gradient(1000px 460px at 55% -180px, rgba(93, 58, 200, 0.22), transparent 70%),
+    radial-gradient(700px 480px at 100% 100%, rgba(42, 29, 94, 0.28), transparent 70%),
+    linear-gradient(180deg, var(--graphite-950) 0%, var(--graphite-900) 50%, #0e0d19 100%);
+  background-color: var(--bg);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
-@keyframes skShimmer { to { transform: translateX(100%); } }
-@media (prefers-reduced-motion: reduce) {
-  .sk::after { animation: none; }
+
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; margin: 0; line-height: 1.15; font-weight: 700; }
+p { margin: 0; }
+a { color: var(--brand-text); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; }
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: 0; padding: 0; }
+button:disabled { cursor: not-allowed; }
+
+input, select, textarea {
+  background: var(--graphite-950);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 12px 14px;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+input::placeholder, textarea::placeholder { color: var(--faint); }
+/* Edge/IE add their own show-password eye inside password fields; we draw our own toggle, so hide the native one (and the clear 'x') */
+input::-ms-reveal, input::-ms-clear { display: none; }
+input[type='password']::-webkit-credentials-auto-fill-button { visibility: hidden; pointer-events: none; position: absolute; right: 0; }
+input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+textarea { resize: none; }
+select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%239ba2b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 38px; }
+select option { background: var(--raised); color: var(--text); }
+
+:focus-visible { outline: 2px solid var(--brand-hi); outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+::selection { background: rgba(139, 92, 246, 0.35); color: #fff; }
+:root { accent-color: var(--brand); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+
+/* iOS Safari zooms into fields below 16px */
+@media (max-width: 768px) {
+  :root body input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  :root body select,
+  :root body textarea { font-size: 16px; }
+  :root body .hide-on-mobile { display: none !important; }
 }

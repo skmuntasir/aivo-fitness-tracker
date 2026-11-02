@@ -10,6 +10,7 @@ from . import admin_bp
 from .guards import (admin_required, staff_required, audit, csv_response, err, oid, page_args, page_meta, rx, ser)
 from ..extensions import mongo
 from ..runtime import invalidate_user
+from ..demo import is_demo
 from ..utils import effective_streak, iso_utc, utcnow, valid_tz
 from datetime import timedelta as _td
 
@@ -68,6 +69,10 @@ def purge_user(user_id):
     db, uid = mongo.db, str(user_id)
     post_ids = [p['_id'] for p in db.posts.find({'author': user_id}, {'_id': 1})]
     db.workouts.delete_many({'user_id': uid})
+    db.workout_sessions.delete_many({'_id': uid})
+    db.streak_freezes.delete_many({'user_id': uid})
+    db.saved_plans.delete_many({'user_id': uid})
+    db.challenges.delete_many({'$or': [{'challenger': uid}, {'opponent': uid}]})
     db.posts.delete_many({'author': user_id})
     db.posts.update_many({}, {'$pull': {'likes': user_id, 'comments': {'user': uid}}})
     db.messages.delete_many({'$or': [{'sender': user_id}, {'receiver': user_id}]})
@@ -231,6 +236,8 @@ def user_create():
            'preferred_units': 'metric', 'target_weight': None, 'profile_picture': None, 'friends': [],
            'last_active': None, 'created_at': utcnow(), 'is_admin': bool(data.get('is_admin')),
            'is_active': True, 'profile_complete': False, 'points': 0, 'created_by_admin': g.admin.get('email')}
+    if is_demo():
+        doc['is_demo'] = True
     res = mongo.db.users.insert_one(doc)
     audit('user.create', 'user', res.inserted_id, {'email': email, 'is_admin': doc['is_admin']})
     return jsonify(success=True, id=str(res.inserted_id)), 201
@@ -333,6 +340,12 @@ def user_email(user_id):
     from email.message import EmailMessage
     from flask import current_app
     cfg = current_app.config
+    if is_demo():   # demo addresses may belong to real people: never send mail from the sandbox
+        _id = oid(user_id)
+        if not _id or not mongo.db.users.count_documents({'_id': _id}, limit=1):
+            return err('User not found', 404)
+        audit('user.email', 'user', _id, {'subject': str((request.get_json() or {}).get('subject', ''))[:150], 'demo': True})
+        return jsonify(success=True, message='Demo mode: email simulated, nothing was actually sent.')
     if not cfg.get('SMTP_HOST'):
         return err('Email is not configured on the server. Set SMTP_HOST / SMTP_USER / SMTP_PASSWORD / SMTP_FROM in backend/.env.', 400)
     _id, data = oid(user_id), request.get_json() or {}

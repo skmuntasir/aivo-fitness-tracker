@@ -6,7 +6,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from bson.objectid import ObjectId
 from app import mongo
 from app.utils import (request_tz, local_today, local_date, local_midnight_utc,
-                       effective_streak)
+                       effective_streak, streak_from_days, _frozen_days)
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
 
@@ -68,15 +68,10 @@ def progress_summary():
 
         # Consecutive active days: ONE grouped query over the last 60 days (was up to 30 queries).
         since = local_midnight_utc(today - timedelta(days=60), tz)
-        active_days = {local_date(w['start_time'], tz).isoformat() for w in mongo.db.workouts.find(
-            {'user_id': user_id, 'start_time': {'$gte': since}}, {'start_time': 1, '_id': 0})}
-        consecutive, d = 0, today
-        # Today not yet trained doesn't break a running streak.
-        if d.isoformat() not in active_days:
-            d -= timedelta(days=1)
-        while d.isoformat() in active_days:
-            consecutive += 1
-            d -= timedelta(days=1)
+        # Same rule as the streak everywhere else (a streak freeze keeps the chain alive).
+        consecutive = streak_from_days({local_date(w['start_time'], tz) for w in mongo.db.workouts.find(
+            {'user_id': user_id, 'start_time': {'$gte': since}}, {'start_time': 1, '_id': 0})},
+            today, _frozen_days(user_id))
 
         consistency_pct = round(sum(1 for x in this_days if x['sessions']) / 7 * 100)
         prev_consistency = round(sum(1 for x in prev_days if x['sessions']) / 7 * 100)

@@ -37,7 +37,16 @@ function Gate({ status }) {
 export default function AdminApp() {
   const location = useLocation();
   const [auth, setAuth] = useState(() => ({ status: localStorage.getItem(TOKEN_KEY) ? 'checking' : 'out', admin: null }));
-  const [theme, setTheme] = useState(() => localStorage.getItem('admin_theme') || 'light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('admin_theme') || 'dark');
+
+  // The admin console has its own light/dark switch: park the member-app theme while it is open.
+  useEffect(() => {
+    const root = document.documentElement;
+    const prev = root.getAttribute('data-theme');
+    root.removeAttribute('data-theme');
+    root.style.colorScheme = '';
+    return () => { if (prev) root.setAttribute('data-theme', prev); };
+  }, []);
 
   useEffect(() => {
     document.title = 'Aivo Admin';
@@ -61,7 +70,17 @@ export default function AdminApp() {
     localStorage.setItem(TOKEN_KEY, token);
     setAuth({ status: 'in', admin });
   }, []);
-  const logout = useCallback(() => { localStorage.removeItem(TOKEN_KEY); setAuth({ status: 'out', admin: null }); }, []);
+  const isDemo = !!auth.admin?.demo;
+  const logout = useCallback(async () => {
+    // Tell the server first: for the demo admin this restores the demo world (suspended demo users come back).
+    try { await ADMIN.post('/auth/logout'); } catch { /* sign out locally regardless */ }
+    localStorage.removeItem(TOKEN_KEY);
+    setAuth({ status: 'out', admin: null });
+    if (isDemo) {   // the demo admin signed in on the normal login page: send them back there
+      localStorage.removeItem('token'); localStorage.removeItem('user');
+      window.location.assign('/login');
+    }
+  }, [isDemo]);
   const toggleTheme = useCallback(() => setTheme((t) => {
     const next = t === 'light' ? 'dark' : 'light';
     localStorage.setItem('admin_theme', next);
@@ -74,7 +93,7 @@ export default function AdminApp() {
 
   return (
     <AdminContext.Provider value={ctx}>
-      <div className={`adm ${isLogin ? 'a-login' : ''}`} data-theme={theme}>
+      <div className={`adm ${isLogin ? 'a-login' : ''}`} data-theme={isLogin ? 'dark' : theme}>
         <ToastProvider>
           <ConfirmProvider>
             <Routes>

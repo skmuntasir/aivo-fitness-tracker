@@ -41,3 +41,10 @@ Never commit `backend/.env` (it is git-ignored).
 
 ## Admin console
 See `ADMIN_GUIDE.md`. Open `/admin/login`; the first registered user is an admin, or run `python backend/create_admin.py you@example.com`.
+
+## Demo accounts
+`/login` lists three clickable demo accounts (demo admin, demo user 1, demo user 2). They are created automatically on
+first start in separate `demo_*` collections of the same database and are fully isolated from real data. The demo admin signs
+in on the normal `/login` page and is taken to the demo admin console. Signing the demo admin out resets the demo world. To rebuild it by hand, delete the
+`demo_users` collection and restart the backend. Note: the emails `admin@gmail.com`, `user1@gmail.com` and `user2@gmail.com`
+are reserved for the demo; a real member who already uses one of them should change it.

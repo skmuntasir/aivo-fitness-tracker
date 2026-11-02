@@ -1,16 +1,32 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useChat } from './ChatContext';
-import { formatClock, lastSeenText } from '../utils/time';
+import { formatClock, lastSeenText, parseServerDate, localDateKey } from '../utils/time';
 import Icon from './Icon';
+import Avatar from './Avatar';
 import EmptyState from './EmptyState';
 import TypingIndicator from './TypingIndicator';
 import useTypingEmitter from './useTypingEmitter';
 import './ChatPanel.css';
 
+// "Today" / "Yesterday" / "Mon, Oct 5" label for the day dividers
+const dayLabel = (ts) => {
+  const d = parseServerDate(ts);
+  if (!d) return '';
+  const key = localDateKey(d);
+  const now = new Date();
+  if (key === localDateKey(now)) return 'Today';
+  const y = new Date(now); y.setDate(y.getDate() - 1);
+  if (key === localDateKey(y)) return 'Yesterday';
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+};
+const GROUP_GAP_MS = 5 * 60 * 1000;   // messages from one person within 5 min read as one group
+
 const ChatPanel = () => {
-  const { isOpen, closeChat, conversations, friendsLoaded, activeConversation, selectConversation, messages, sendMessage, retryMessage, typing, sendTyping } = useChat();
+  const { isOpen, closeChat, conversations, friendsLoaded, activeConversation, selectConversation, messages, sendMessage, retryMessage, typing, sendTyping, setActiveConversation, totalUnread } = useChat();
+  const totalUnreadCount = totalUnread || 0;
   const myId = (() => { try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.id || u._id || null; } catch { return null; } })();
   const [draft, setDraft] = useState('');
+  const [query, setQuery] = useState('');
   const messagesEndRef = useRef(null);
   const { onInput: emitTyping, stop: stopTyping } = useTypingEmitter(activeConversation, sendTyping);
 
@@ -23,6 +39,25 @@ const ChatPanel = () => {
     () => conversations.find(c => c.id === activeConversation) || null,
     [conversations, activeConversation]
   );
+
+  const shownConvos = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? conversations.filter((c) => (c.full_name || '').toLowerCase().includes(q)) : conversations;
+  }, [conversations, query]);
+
+  // Decorate each message: day divider above it? first / last of its group? (drives spacing, tails and timestamps)
+  const rows = useMemo(() => activeMessages.map((m, i) => {
+    const prev = activeMessages[i - 1];
+    const next = activeMessages[i + 1];
+    const t = parseServerDate(m.timestamp)?.getTime() || 0;
+    const tp = prev ? (parseServerDate(prev.timestamp)?.getTime() || 0) : 0;
+    const tn = next ? (parseServerDate(next.timestamp)?.getTime() || 0) : 0;
+    const sameDay = (a, b) => !!a && !!b && localDateKey(parseServerDate(a)) === localDateKey(parseServerDate(b));
+    const joinsPrev = !!prev && prev.sender === m.sender && sameDay(prev.timestamp, m.timestamp) && Math.abs(t - tp) < GROUP_GAP_MS;
+    const joinsNext = !!next && next.sender === m.sender && sameDay(next.timestamp, m.timestamp) && Math.abs(tn - t) < GROUP_GAP_MS;
+    const newDay = !prev || !sameDay(prev.timestamp, m.timestamp);
+    return { m, joinsPrev, joinsNext, newDay };
+  }), [activeMessages]);
 
   const lastId = activeMessages.length ? activeMessages[activeMessages.length - 1].id : null;
   useEffect(() => {
@@ -53,79 +88,99 @@ const ChatPanel = () => {
   };
 
   return (
-    <div className="chat-panel">
+    <div className={`chat-panel${activeConversation ? ' has-active' : ''}`} role="dialog" aria-label="Messages">
       {/* Header */}
-      <div className="chat-panel-header">
-        <div className="header-left">
-          <div className="header-avatar">
-            {activeFriend ? activeFriend.full_name?.charAt(0)?.toUpperCase() : <Icon name="message" size={18} />}
-            {activeFriend && <span className={`convo-dot ${activeFriend.online ? 'online' : 'offline'}`} />}
-          </div>
-          <div className="header-info">
-            <div className="header-name">{activeFriend ? activeFriend.full_name : 'Messages'}</div>
-            {activeFriend && (
-              <div className={`header-status ${activeFriend.online ? 'online' : ''}`}>
-                {friendTyping ? <TypingIndicator inline /> : activeFriend.online ? '● Online' : (lastSeenText(activeFriend.last_active) || '○ Offline')}
-              </div>
-            )}
+      <div className="cp-header">
+        {activeFriend && (
+          <button className="cp-icon-btn cp-back" onClick={() => setActiveConversation(null)} aria-label="Back to conversations"><Icon name="arrowLeft" size={18} /></button>
+        )}
+
+        {/* Left: always shows the inbox title on desktop (list column), friend info shows over the thread */}
+        <div className="cp-head-list">
+          <span className="cp-head-ico"><Icon name="message" size={18} /></span>
+          <div className="cp-head-text">
+            <div className="cp-head-title">Messages</div>
+            <div className="cp-head-sub">{totalUnreadCount ? `${totalUnreadCount} unread` : 'All caught up'}</div>
           </div>
         </div>
-        <button className="chat-close" onClick={closeChat} aria-label="Close">×</button>
+
+        <div className="cp-head-thread">
+          {activeFriend ? (
+            <>
+              <Avatar name={activeFriend.full_name} online={!!activeFriend.online} size={40} />
+              <div className="cp-head-text">
+                <div className="cp-head-title">{activeFriend.full_name}</div>
+                <div className={`cp-head-sub ${activeFriend.online && !friendTyping ? 'online' : ''}`}>
+                  {friendTyping ? <TypingIndicator inline /> : activeFriend.online ? 'Online now' : (lastSeenText(activeFriend.last_active) || 'Offline')}
+                </div>
+              </div>
+            </>
+          ) : (
+            <span className="cp-head-hint">Select a conversation</span>
+          )}
+        </div>
+
+        <button className="cp-icon-btn cp-close" onClick={closeChat} aria-label="Close messages"><Icon name="x" size={18} /></button>
       </div>
 
       {/* Body */}
-      <div className="chat-panel-body">
+      <div className="cp-body">
         {/* Friends list */}
-        <aside className="convo-list">
-          <div className="convo-list-title">Friends</div>
-          {!friendsLoaded ? (
-            <div className="convo-empty">Loading…</div>
-          ) : conversations.length === 0 ? (
-            <div className="convo-empty">No friends yet</div>
-          ) : (
-            conversations.map((c) => {
-              const isActive = c.id === activeConversation;
-              return (
-                <button
-                  key={c.id}
-                  className={`convo-item ${isActive ? 'active' : ''}`}
-                  onClick={() => handleSelect(c.id)}
-                  title={c.full_name}
-                >
-                  <div className="convo-avatar">
-                    {c.full_name?.charAt(0)?.toUpperCase() || '?'}
-                    <span className={`convo-dot ${c.online ? 'online' : 'offline'}`} />
-                  </div>
-                  <div className="convo-meta">
-                    <div className="convo-name">{c.full_name}</div>
-                    <div className="convo-preview">{typing[c.id] ? <TypingIndicator inline /> : (c.last_message || (c.online ? 'Online' : 'Offline'))}</div>
-                  </div>
-                  {c.unread_count > 0 && <span className="chat-unread-badge">{c.unread_count > 9 ? '9+' : c.unread_count}</span>}
-                </button>
-              );
-            })
-          )}
+        <aside className="cp-list" aria-label="Conversations">
+          <label className="cp-search">
+            <Icon name="search" size={16} />
+            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search friends" aria-label="Search friends" />
+          </label>
+          <div className="cp-list-scroll">
+            {!friendsLoaded ? (
+              <div className="cp-list-note">Loading…</div>
+            ) : conversations.length === 0 ? (
+              <div className="cp-list-note">No friends yet. Add someone from the Friends page.</div>
+            ) : shownConvos.length === 0 ? (
+              <div className="cp-list-note">No one matches “{query.trim()}”.</div>
+            ) : (
+              shownConvos.map((c) => {
+                const isActive = c.id === activeConversation;
+                const unread = c.unread_count > 0;
+                return (
+                  <button key={c.id} className={`cp-convo ${isActive ? 'active' : ''} ${unread ? 'unread' : ''}`} onClick={() => handleSelect(c.id)} title={c.full_name}>
+                    <Avatar name={c.full_name} online={!!c.online} size={42} />
+                    <span className="cp-convo-meta">
+                      <span className="cp-convo-name">{c.full_name}</span>
+                      <span className="cp-convo-preview">{typing[c.id] ? <TypingIndicator inline /> : (c.last_message || (c.online ? 'Online' : 'Offline'))}</span>
+                    </span>
+                    {unread && <span className="cp-unread">{c.unread_count > 9 ? '9+' : c.unread_count}</span>}
+                  </button>
+                );
+              })
+            )}
+          </div>
         </aside>
 
         {/* Message area */}
-        <div className="message-area">
-          <div className="messages-scroll">
+        <div className="cp-thread">
+          <div className="cp-messages">
             {!activeConversation ? (
-              <EmptyState compact icon="users" title="Pick a friend" text="Choose someone on the left to start chatting." />
+              <EmptyState compact icon="users" title="Pick a conversation" text="Choose a friend on the left to start chatting." />
             ) : activeMessages.length === 0 ? (
-              <EmptyState compact icon="message" title="No messages yet" text="Say hi and start the conversation." />
+              <EmptyState compact icon="message" title="No messages yet" text={`Say hi to ${activeFriend?.full_name?.split(' ')[0] || 'your friend'} and start the conversation.`} />
             ) : (
-              activeMessages.map((m, i) => {
+              rows.map(({ m, joinsPrev, joinsNext, newDay }, i) => {
                 const isSent = m.sender === myId;
                 return (
-                  <div key={m.clientId || m.id || i} className={`msg ${isSent ? 'sent' : 'received'}`} style={m.pending ? { opacity: 0.6 } : undefined}>
-                    <div className="msg-text">{m.message}</div>
-                    <div className="msg-ts">
-                      {m.failed
-                        ? <button type="button" onClick={() => retryMessage(activeConversation, m.clientId)} style={{background:'none',border:0,color:'#f87171',cursor:'pointer',textDecoration:'underline',font:'inherit',padding:0}}>Failed – retry</button>
-                        : m.pending ? 'Sending…' : formatClock(m.timestamp)}
+                  <React.Fragment key={m.clientId || m.id || i}>
+                    {newDay && <div className="cp-day"><span>{dayLabel(m.timestamp)}</span></div>}
+                    <div className={`cp-msg ${isSent ? 'sent' : 'received'}${joinsPrev ? ' joins-prev' : ''}${joinsNext ? ' joins-next' : ''}${m.pending ? ' pending' : ''}${m.failed ? ' failed' : ''}`}>
+                      <div className="cp-msg-text">{m.message}</div>
+                      {(!joinsNext || m.pending || m.failed) && (
+                        <div className="cp-msg-ts">
+                          {m.failed
+                            ? <button type="button" className="cp-retry" onClick={() => retryMessage(activeConversation, m.clientId)}>Not sent · retry</button>
+                            : m.pending ? 'Sending…' : formatClock(m.timestamp)}
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </React.Fragment>
                 );
               })
             )}
@@ -133,20 +188,17 @@ const ChatPanel = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="message-input">
+          <div className="cp-composer">
             <input
               value={draft}
               onChange={(e) => { setDraft(e.target.value); emitTyping(e.target.value); }}
               onKeyDown={handleKeyDown}
-              placeholder={activeFriend ? `Message ${activeFriend.full_name}…` : 'Select a friend…'}
+              placeholder={activeFriend ? `Message ${activeFriend.full_name.split(' ')[0]}…` : 'Select a friend to message'}
               disabled={!activeConversation}
+              aria-label="Message"
             />
-            <button
-              className={`send-small ${draft.trim() ? 'active' : ''}`}
-              onClick={handleSend}
-              disabled={!draft.trim() || !activeConversation}
-            >
-              <Icon name="send" size={15} />
+            <button className={`cp-send ${draft.trim() ? 'active' : ''}`} onClick={handleSend} disabled={!draft.trim() || !activeConversation} aria-label="Send message">
+              <Icon name="send" size={17} />
             </button>
           </div>
         </div>

@@ -14,7 +14,8 @@ from .guards import (admin_public, admin_required, staff_required, audit, err, o
                      parse_day, role_of)
 from ..extensions import mongo
 from ..runtime import DEFAULT_SETTINGS, get_settings, invalidate_user, save_settings
-from ..social.socket import online_users
+from ..social.socket import online_count
+from ..demo import ensure_demo_account, ADMIN_ID as DEMO_ADMIN_ID, is_demo, token_claims, restore_demo_after_admin, restore_if_stale_suspension, DEMO_ADMIN_EMAIL
 from ..utils import iso_utc, rate_limit, utcnow
 
 _STARTED = time.time()
@@ -29,20 +30,37 @@ def admin_login():
     password = str(data.get('password', ''))
     if not email or not password:
         return err('Email and password are required')
+    if is_demo():
+        ensure_demo_account(email)
     user = mongo.db.users.find_one({'email': email})
     if not user or not check_password_hash(user.get('password', ''), password):
         return err('Invalid credentials', 401)
+    if user.get('is_demo'):
+        user = restore_if_stale_suspension(user)
     if user.get('is_active', True) is False:
         return err('This account is suspended', 403)
     if role_of(user) == 'user':
         return err('This account does not have admin access', 403)
 
+    if user.get('is_demo') and email == DEMO_ADMIN_EMAIL:   # fresh demo world for every demo-admin session
+        restore_demo_after_admin()
+        user = mongo.db.users.find_one({'_id': user['_id']}) or user
+
     token = create_access_token(identity=str(user['_id']), expires_delta=timedelta(hours=12),
-                                additional_claims={'tv': int(user.get('token_version', 0) or 0)})
+                                additional_claims={'tv': int(user.get('token_version', 0) or 0), **token_claims(user)})
     g.admin = user
     mongo.db.users.update_one({'_id': user['_id']}, {'$set': {'last_active': utcnow()}})
     audit('admin.login', 'admin', user['_id'])
     return jsonify(success=True, token=token, admin=admin_public(user))
+
+
+@admin_bp.route('/auth/logout', methods=['POST'])
+@staff_required
+def admin_logout():
+    """Stateless for real admins. For the demo admin it restores the demo world (suspended demo users come back)."""
+    if is_demo() and g.admin['_id'] == DEMO_ADMIN_ID:
+        restore_demo_after_admin()
+    return jsonify(success=True)
 
 
 @admin_bp.route('/auth/me', methods=['GET'])
@@ -68,7 +86,7 @@ def change_password():
     invalidate_user(g.admin['_id'])
     audit('admin.change_password', 'admin', g.admin['_id'])
     token = create_access_token(identity=str(g.admin['_id']), expires_delta=timedelta(hours=12),
-                                additional_claims={'tv': tv})
+                                additional_claims={'tv': tv, **token_claims(g.admin)})
     return jsonify(success=True, message='Password updated', token=token)
 
 
@@ -104,7 +122,7 @@ def overview():
         'messages_7d': db.messages.count_documents({'timestamp': {'$gte': d7}}),
         'open_reports': db.reports.count_documents({'status': 'open'}),
         'ai_requests_7d': db.ai_usage.count_documents({'ts': {'$gte': d7}}),
-        'online_now': len(online_users),
+        'online_now': online_count(),
     }
     proj = {'full_name': 1, 'email': 1, 'created_at': 1, 'points': 1, 'is_active': 1}
     recent = list(db.users.find({}, proj).sort('created_at', -1).limit(8))
@@ -176,7 +194,7 @@ def system_health():
             counts[name] = None
     return jsonify(success=True, health={
         'database': {'ok': db_ok, 'latency_ms': latency}, 'collections': counts,
-        'online_users': len(online_users), 'ai_configured': bool(os.environ.get('GROQ_API_KEY')),
+        'online_users': online_count(), 'ai_configured': bool(os.environ.get('GROQ_API_KEY')),
         'email_configured': bool(os.environ.get('SMTP_HOST')),
         'environment': os.environ.get('FLASK_ENV', 'development') or 'development',
         'python': sys.version.split()[0], 'uptime_seconds': int(time.time() - _STARTED),

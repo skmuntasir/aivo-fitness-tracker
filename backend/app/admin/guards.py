@@ -88,7 +88,7 @@ staff_required = _make_guard(staff=True)    # admins + moderators (moderation / 
 
 def admin_public(user):
     return {'id': str(user['_id']), 'email': user.get('email', ''), 'full_name': user.get('full_name', ''),
-            'username': user.get('username', ''), 'role': role_of(user)}
+            'username': user.get('username', ''), 'role': role_of(user), 'demo': bool(user.get('is_demo'))}
 
 
 # ── audit ───────────────────────────────────────────────────────────────────

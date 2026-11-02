@@ -24,6 +24,7 @@ const Chat = () => {
 
   const [text, setText] = useState('');
   const bottomRef = useRef(null);
+  const taRef = useRef(null);
   const { onInput: emitTyping, stop: stopTyping } = useTypingEmitter(friendId, sendTyping);
   const myId = useMemo(getMyId, []);
 
@@ -53,6 +54,14 @@ const Chat = () => {
     if (friendTyping) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [friendTyping]);
 
+  // the box grows with what you type (up to a limit) and shrinks back after sending
+  useEffect(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    if (text) el.style.height = Math.min(el.scrollHeight, 132) + 'px';
+  }, [text]);
+
   const handleSend = () => {
     const body = text.trim();
     if (!body || !friendId) return;
@@ -72,14 +81,12 @@ const Chat = () => {
 
   return (
     <div className="chat-page">
-      <div className="chat-background"></div>
       <BackButton />
-      <div className="chat-shell glass-panel">
+      <div className="chat-shell card">
         <div className="chat-grid">
           <aside className="chat-friends-panel">
             <div className="friends-panel-header">
-              <span>Active Chats</span>
-              <h2>Your squad</h2>
+              <h2>Messages</h2>
             </div>
             <div className="friends-scroll">
               {!friendsLoaded ? (
@@ -99,7 +106,7 @@ const Chat = () => {
                     <div className="friend-preview-meta">
                       <strong>{item.full_name}</strong>
                       <span>{item.online ? 'Online' : (item.username || item.email)}</span>
-                      <small>{typing[item.id] ? <TypingIndicator inline /> : (item.last_message || 'Tap to continue the conversation')}</small>
+                      <small>{typing[item.id] ? <TypingIndicator inline /> : (item.last_message || 'No messages yet')}</small>
                     </div>
                     {item.unread_count > 0 && (
                       <span className="chat-unread-badge">{item.unread_count > 9 ? '9+' : item.unread_count}</span>
@@ -115,7 +122,6 @@ const Chat = () => {
               <div className="chat-header-id">
                 {friend && <Avatar name={friend.full_name} online={!!friend.online} size={46} />}
                 <div>
-                  <span className="page-chip">Direct Message</span>
                   <h1>{friend ? friend.full_name : friendsLoaded ? 'Select a friend' : '…'}</h1>
                 </div>
               </div>
@@ -158,7 +164,7 @@ const Chat = () => {
                         <p>{message.message}</p>
                         <span>
                           {message.failed ? (
-                            <button type="button" className="retry-btn" onClick={() => retryMessage(friendId, message.clientId)}>Failed – tap to retry</button>
+                            <button type="button" className="retry-btn" onClick={() => retryMessage(friendId, message.clientId)}>Not sent · tap to retry</button>
                           ) : message.pending ? 'Sending…' : formatClock(message.timestamp)}
                         </span>
                       </div>
@@ -172,13 +178,16 @@ const Chat = () => {
 
             <div className="chat-controls">
               <textarea
+                ref={taRef}
+                rows={1}
                 value={text}
                 onChange={(e) => handleChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Write your message..."
+                placeholder={friend ? `Message ${friend.full_name.split(' ')[0]}` : 'Write a message'}
+                aria-label="Message"
                 maxLength={2000}
               />
-              <button className="send-btn" onClick={handleSend} disabled={!text.trim()}><Icon name="send" size={16} /> Send</button>
+              <button className="send-btn" onClick={handleSend} disabled={!text.trim()} aria-label="Send message"><Icon name="send" size={18} /></button>
             </div>
           </section>
         </div>

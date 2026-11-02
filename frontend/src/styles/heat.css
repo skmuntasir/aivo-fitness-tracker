@@ -1,0 +1,16 @@
+/* Activity colour steps: ONE electric-purple family, dark -> light, shared by the heatmap cells, the week dots and the legend.
+   Palette follows "Dark Electric Purple" (#241044 · #351568 · #51249B · #7135C9 · #985BFF), lifted slightly so every step
+   stays visible and neon on the dark calendar panel. Gradients + glow, never flat fills.
+   under 1 min (deep) · 1-2 (royal) · 2-5 (electric) · 5-10 (neon) · 10+ (glowing ultraviolet) */
+:root {
+  --h1: linear-gradient(145deg, #6a34c9 0%, #3b1783 100%);  --h1-glow: rgba(106, 52, 201, 0.55);   --h1-ring: rgba(152, 91, 255, 0.28);
+  --h2: linear-gradient(145deg, #8545e6 0%, #4f21a3 100%);  --h2-glow: rgba(133, 69, 230, 0.60);   --h2-ring: rgba(170, 120, 255, 0.34);
+  --h3: linear-gradient(145deg, #a266ff 0%, #6a2fc4 100%);  --h3-glow: rgba(152, 91, 255, 0.65);   --h3-ring: rgba(190, 150, 255, 0.40);
+  --h4: linear-gradient(145deg, #c093ff 0%, #8340ec 100%);  --h4-glow: rgba(176, 118, 255, 0.72);  --h4-ring: rgba(210, 180, 255, 0.46);
+  --h5: linear-gradient(145deg, #eadbff 0%, #a56bff 55%, #7a3bf0 100%);  --h5-glow: rgba(190, 140, 255, 0.90);  --h5-ring: rgba(240, 225, 255, 0.60);
+}
+.heat-l1 { background: var(--h1); --glow: var(--h1-glow); --ring: var(--h1-ring); }
+.heat-l2 { background: var(--h2); --glow: var(--h2-glow); --ring: var(--h2-ring); }
+.heat-l3 { background: var(--h3); --glow: var(--h3-glow); --ring: var(--h3-ring); }
+.heat-l4 { background: var(--h4); --glow: var(--h4-glow); --ring: var(--h4-ring); }
+.heat-l5 { background: var(--h5); --glow: var(--h5-glow); --ring: var(--h5-ring); }

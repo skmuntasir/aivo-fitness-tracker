@@ -1,15 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import API from '../services/api';
 import { useChat } from './ChatContext';
 import Icon from './Icon';
+import Avatar from './Avatar';
 import './NavIcons.css';
 
-// Unread count + friend requests now come from ChatContext (kept live over the socket),
-// instead of this component polling the server every 30s.
+// Top-bar quick actions: messages + friend-request notifications.
+// Unread count + friend requests come from ChatContext (kept live over the socket).
 const NavIcons = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const navigate = useNavigate();
   const ref = useRef(null);
   const { openChat, totalUnread, requests, refreshRequests, refreshFriends } = useChat();
 
@@ -30,35 +29,32 @@ const NavIcons = () => {
 
   return (
     <div className="nav-icons-wrapper" ref={ref}>
-      <button className="nav-icon-btn hide-on-mobile" onClick={() => navigate('/friends')} aria-label="Friends"><Icon name="users" size={18} /></button>
-
-      <button className="nav-icon-btn chat-toggle-btn hide-on-mobile" onClick={() => openChat()} aria-label="Chat">
-        <Icon name="message" size={18} />
-        {totalUnread > 0 && (
-          <span className="notification-badge msg-badge">{totalUnread > 9 ? '9+' : totalUnread}</span>
-        )}
+      <button className="nav-icon-btn chat-toggle-btn hide-on-mobile" onClick={() => openChat()} aria-label="Messages">
+        <Icon name="message" size={19} />
+        {totalUnread > 0 && <span className="notification-badge">{totalUnread > 9 ? '9+' : totalUnread}</span>}
       </button>
 
-      <button className="nav-icon-btn notification-btn" onClick={() => setDropdownOpen((prev) => !prev)} aria-label="Notifications">
-        <Icon name="bell" size={18} />
+      <button className="nav-icon-btn notification-btn" onClick={() => setDropdownOpen((prev) => !prev)} aria-label="Notifications" aria-expanded={dropdownOpen}>
+        <Icon name="bell" size={19} />
         {requests.length > 0 && <span className="notification-badge">{requests.length}</span>}
       </button>
 
       {dropdownOpen && (
         <div className="notification-dropdown">
-          <h4>Friend Requests</h4>
+          <h4>Friend requests</h4>
           {requests.length === 0 ? (
-            <div className="notification-empty">No new requests</div>
+            <div className="notification-empty"><Icon name="check" size={16} /> You’re all caught up</div>
           ) : (
             requests.map((req) => (
               <div className="notification-card" key={req.requestId}>
-                <div>
+                <Avatar name={req.sender.full_name} size={38} showPresence={false} />
+                <div className="notification-who">
                   <strong>{req.sender.full_name}</strong>
                   <p>{req.sender.email}</p>
                 </div>
                 <div className="notification-actions">
-                  <button onClick={() => handleAccept(req.requestId)}>Accept</button>
-                  <button onClick={() => handleReject(req.requestId)}>Reject</button>
+                  <button className="na-accept" onClick={() => handleAccept(req.requestId)}>Accept</button>
+                  <button className="na-reject" onClick={() => handleReject(req.requestId)} aria-label="Reject request"><Icon name="x" size={15} /></button>
                 </div>
               </div>
             ))

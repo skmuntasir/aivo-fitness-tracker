@@ -1,69 +1,25 @@
-/* Performance layer — loaded last. Pure CSS, no visual redesign.
-   Goals: smooth scrolling, cheap rendering, no layout jumps, soft page transitions. */
-
-/* ── Scrolling ─────────────────────────────────────────────── */
-/* Native scrolling only. (An earlier version forced `scroll-behavior: smooth` and `touch-action` globally;
-   both can fight the browser's own wheel / trackpad momentum, so they are intentionally NOT set.) */
+/* Performance layer — loaded last. Pure CSS, no visual design. */
 body { -webkit-tap-highlight-color: transparent; }
 
-/* html, body, #root and every page root had `overflow-x: hidden`, which silently turns each of them into a
-   scroll container (overflow-y becomes `auto`). The wheel/trackpad then "gets stuck" on those nested containers.
-   `clip` hides horizontal overflow WITHOUT creating a scroll container, so only the window scrolls.
-   :root-prefixed so it beats App.css / each page's own stylesheet regardless of load order.
-   Browsers without `clip` support simply keep the previous `hidden`. */
+/* `clip` hides horizontal overflow WITHOUT making each wrapper a scroll container */
 :root, :root body, :root body #root, :root .App, :root .App > * { overflow-x: clip; }
+.messages-scroll, .chat-body, .ac-body { overscroll-behavior: contain; }
 
-/* Only real inner scrollers keep their scroll inside (no page jump when you reach their end) */
-.messages-scroll { overscroll-behavior: contain; }
-
-/* ── Rendering ─────────────────────────────────────────────── */
-/* Decorative backgrounds never take part in hit-testing / scrolling */
-.orb, .pg-bg-orb, .home-bg-gradient, .home-bg-orbs, .pg-bg { pointer-events: none; }
-
-/* Long lists: the browser skips layout/paint of off-screen items until they near the viewport */
+/* Long lists: the browser skips layout/paint of off-screen items */
 .comm-post { content-visibility: auto; contain-intrinsic-size: auto 260px; }
-.friend-card { content-visibility: auto; contain-intrinsic-size: auto 64px; }
-.lb-table-card tbody tr, .lb-row { content-visibility: auto; contain-intrinsic-size: auto 56px; }
+.friend-card { content-visibility: auto; contain-intrinsic-size: auto 72px; }
+.lb-row { content-visibility: auto; contain-intrinsic-size: auto 60px; }
+img[loading='lazy'] { content-visibility: auto; }
 
-/* Images never block layout; keep their space reserved so nothing jumps */
-img { max-width: 100%; height: auto; }
-img[loading="lazy"] { content-visibility: auto; }
-
-/* Continuous animations run on the compositor only */
-.ac-fab-pulse, .sk::after, .ui-dots i { will-change: transform, opacity; }
-
-/* ── Page transitions ─────────────────────────────────────── */
-/* Every page root is a direct child of .App; fade it in softly (opacity only, so fixed children are unaffected) */
-.App > * { animation: aivoRouteIn .22s ease-out; }
-/* (No fill-mode: with `both`/`forwards` the finished animation keeps the WHOLE page promoted to one giant
-   composited layer for as long as the page is open — a big memory cost on iPhones. The fade looks identical.) */
+/* Soft page transition (opacity only — keeps fixed children unaffected) */
+.App > * { animation: aivoRouteIn 0.22s ease-out; }
 @keyframes aivoRouteIn { from { opacity: 0; } to { opacity: 1; } }
+.route-loading { animation: none !important; }
 
-.route-loading { min-height: 100vh; display: grid; place-items: center; animation: none !important; }
-.modal-loading { min-height: 160px; display: grid; place-items: center; }
-.route-spinner {
-  width: 30px; height: 30px; border-radius: 50%;
-  border: 3px solid rgba(167, 139, 250, 0.22); border-top-color: #a78bfa;
-  animation: aivoSpin .7s linear infinite;
-}
-@keyframes aivoSpin { to { transform: rotate(360deg); } }
-
-/* ── Accessibility: respect reduced-motion ─────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .App > * { animation: none; }
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
-
-/* ── Phones: cheaper backgrounds (iOS WebKit crashes a tab that holds too much GPU memory) ───────────────
-   The glowing orbs are already radial gradients that fade to transparent, so the extra blur(80-90px) on
-   400-600px circles adds almost nothing visually — but each one costs a large offscreen layer. The slow
-   floating animation on the Progress orbs forced those layers to be re-rendered continuously. */
 @media (max-width: 768px) {
-  :root .orb,
-  :root .pg-bg-orb,
-  :root .login-container::before, :root .login-container::after,
-  :root .register-container::before, :root .register-container::after { filter: none; }
-  :root .pg-bg-orb { animation: none; }
-  /* full-screen frosted overlays behind modals: a plain dim is far cheaper than blurring the whole page */
-  :root .modal-overlay, :root .prof-modal-overlay { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: rgba(3, 6, 18, 0.82); }
+  :root .modal-overlay, :root .prof-modal-overlay, :root .fb-overlay { -webkit-backdrop-filter: none; backdrop-filter: none; background-color: rgba(5, 7, 12, 0.82); }
 }

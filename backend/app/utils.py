@@ -1,7 +1,7 @@
 """Shared helpers: UTC-safe timestamps, timezone handling, tiny rate limiter."""
 import time
 import threading
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date as _date
 from functools import wraps
 from flask import request, jsonify
 
@@ -66,17 +66,36 @@ def local_today(tz_name):
     return local_date(utcnow(), tz_name)
 
 
-def streak_from_days(days, today):
+def streak_from_days(days, today, frozen=()):
     """Consecutive active days ending today (or yesterday: not having trained *yet* today
-    must not reset a running streak). `days` is a set of datetime.date."""
+    must not reset a running streak). `days` is a set of datetime.date.
+
+    `frozen` = days the user spent a weekly streak freeze on. A frozen day keeps the chain
+    alive but is not counted as a training day."""
     d = today
-    if d not in days:
+    if d not in days and d not in frozen:
         d = d - timedelta(days=1)
     n = 0
-    while d in days:
-        n += 1
+    while d in days or d in frozen:
+        if d in days:
+            n += 1
         d = d - timedelta(days=1)
     return n
+
+
+def _frozen_days(user_id):
+    """Set of LOCAL calendar dates the user covered with a streak freeze (tiny: max 1 per week)."""
+    from .extensions import mongo
+    out = set()
+    try:
+        for f in mongo.db.streak_freezes.find({'user_id': str(user_id)}, {'date': 1, '_id': 0}):
+            try:
+                out.add(_date.fromisoformat(f['date']))
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return out
 
 
 def _active_days(user_id, tz_name, since=None):
@@ -99,10 +118,11 @@ def compute_streak(user_id, tz_name):
     Returns (streak, last_active_date_or_None).
     """
     today = local_today(tz_name)
+    frozen = _frozen_days(user_id)
     for lookback in (45, 400, None):
         since = local_midnight_utc(today - timedelta(days=lookback), tz_name) if lookback else None
         days = _active_days(user_id, tz_name, since)
-        streak = streak_from_days(days, today)
+        streak = streak_from_days(days, today, frozen)
         edge_reached = lookback is not None and streak >= lookback - 1
         if not edge_reached:
             return streak, (max(days) if days else None)
@@ -157,10 +177,19 @@ def streaks_for_users(users, default_tz):
         uid = w.get('user_id')
         if uid in days_by_user and w.get('start_time'):
             days_by_user[uid].add(local_date(w['start_time'], tz_of[uid]))
+    frozen_by_user = {uid: set() for uid in tz_of}
+    try:
+        for f in mongo.db.streak_freezes.find({'user_id': {'$in': list(tz_of)}}, {'user_id': 1, 'date': 1, '_id': 0}):
+            try:
+                frozen_by_user[f['user_id']].add(_date.fromisoformat(f['date']))
+            except Exception:
+                pass
+    except Exception:
+        pass
     out = {}
     for uid, days in days_by_user.items():
         tz = tz_of[uid]
-        n = streak_from_days(days, local_today(tz))
+        n = streak_from_days(days, local_today(tz), frozen_by_user.get(uid, ()))
         out[uid] = n if n < 395 else compute_streak(uid, tz)[0]   # very long streaks: exact recount
     return out
 

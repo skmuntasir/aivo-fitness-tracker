@@ -4,9 +4,20 @@ import {
   BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   CartesianGrid, XAxis, YAxis, Tooltip, Legend,
 } from 'recharts';
-import BackButton from '../components/BackButton';
 import API from '../services/api';
 import './Progress.css';
+import Icon from '../components/Icon';
+import BackButton from '../components/BackButton';
+
+// Emoji used in the data tables below -> consistent SVG icons
+const EM_MAP = { '🧠':'sparkles','📋':'inbox','💡':'sparkles','🔥':'flame','🕸':'target','📅':'calendar','⚖':'target','📊':'progress','🎯':'target','🏆':'trophy','📈':'progress','🛡':'check','💤':'clock','💧':'activity','⚡':'zap','🏃':'activity','🌙':'clock','💪':'activity','📆':'calendar','😴':'clock','🧘':'activity','🥗':'check','📉':'progress','⏱':'timer','🚀':'zap','🏠':'home','✅':'check','⚠':'alert' };
+const DOTS = { '🔴':'critical','🟡':'warning','🟢':'optimal' };
+const Em = ({ e, size = 18 }) => {
+  const k = String(e || '').replace(/\uFE0F/g, '');
+  if (DOTS[k]) return <i className={`pg-dot pg-dot-${DOTS[k]}`} />;
+  return <Icon name={EM_MAP[k] || 'activity'} size={size} />;
+};
+
 
 // Helper: display weight as integer (no decimals)
 const fmtWeight = (w) => {
@@ -104,7 +115,7 @@ const generateGoalPrediction = (stats) => {
     isAhead,
     weeklyLoss: weeklyLossKg,
     remaining:  remaining.toFixed(1),
-    label:      isAhead ? '🚀 Ahead of schedule!' : weeks < 99 ? `⏱ ~${weeks} weeks to goal` : '📊 Log workouts to predict',
+    label:      isAhead ? 'Ahead of schedule' : weeks < 99 ? `About ${weeks} weeks to goal` : 'Log workouts to predict',
     sublabel:   isAhead
       ? `Burning ${stats.weekCalories.toLocaleString()} kcal/week — keep this up!`
       : `Increase weekly calorie burn to reach goal sooner`,
@@ -127,7 +138,7 @@ const CircularScore = ({ score, size = 180, strokeWidth = 14 }) => {
   const radius      = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset      = circumference - (animated / 100) * circumference;
-  const color       = score >= 80 ? '#34d399' : score >= 60 ? '#fbbf24' : '#f87171';
+  const color       = score >= 80 ? '#38d79f' : score >= 60 ? '#fbbf24' : '#f4616b';
   const label       = score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : score > 0 ? 'Needs Work' : 'No data yet';
 
   // requestAnimationFrame tween (was a 16ms setInterval doing ~60 React re-renders, with a cleanup that never ran)
@@ -151,14 +162,14 @@ const CircularScore = ({ score, size = 180, strokeWidth = 14 }) => {
         <defs>
           <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%"   stopColor={color} stopOpacity="0.9" />
-            <stop offset="100%" stopColor={score >= 80 ? '#059669' : score >= 60 ? '#d97706' : '#dc2626'} />
+            <stop offset="100%" stopColor={score >= 80 ? '#1fb37f' : score >= 60 ? '#e8a800' : '#d63f49'} />
           </linearGradient>
           <filter id="glow">
             <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
             <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth={strokeWidth}/>
+        <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="var(--line)" strokeWidth={strokeWidth}/>
         <circle cx={size/2} cy={size/2} r={radius} fill="none"
           stroke="url(#scoreGrad)" strokeWidth={strokeWidth}
           strokeDasharray={circumference} strokeDashoffset={offset}
@@ -197,8 +208,8 @@ const AnimatedNum = ({ value, suffix='', decimals=0 }) => {
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background:'rgba(8,14,32,0.97)', border:'1px solid rgba(255,255,255,0.13)', borderRadius:14, padding:'10px 16px' }}>
-      <p style={{ margin:0, color:'#a8b9ff', fontSize:'0.82rem', marginBottom:6 }}>{label}</p>
+    <div style={{ background:'#171b27', border:'1px solid #323950', borderRadius:14, padding:'10px 16px' }}>
+      <p style={{ margin:0, color:'#9ba2b8', fontSize:'0.82rem', marginBottom:6 }}>{label}</p>
       {payload.map((p,i) => (
         <p key={i} style={{ margin:'3px 0', color:p.color, fontSize:'0.9rem', fontWeight:600 }}>
           {p.name}: {typeof p.value === 'number' ? p.value.toLocaleString() : p.value}
@@ -210,7 +221,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 // ─── LOADING SKELETON ─────────────────────────────────────────────────────────
 const Skeleton = ({ h = 24, w = '100%', radius = 8 }) => (
-  <div style={{ height: h, width: w, borderRadius: radius, background: 'rgba(255,255,255,0.07)', animation: 'shimmer 1.5s infinite' }} />
+  <div style={{ height: h, width: w, borderRadius: radius, background: 'var(--raised)', animation: 'scPulse 1.3s ease-in-out infinite' }} />
 );
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
@@ -310,10 +321,10 @@ const Progress = () => {
         <BackButton />
         <div className="pg-content" style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'60vh' }}>
           <div className="glass-panel" style={{ padding:'40px', textAlign:'center', maxWidth:'500px' }}>
-            <div style={{ fontSize:'3rem', marginBottom:'16px' }}>⚠️</div>
-            <h2 style={{ color:'#f87171', marginBottom:'12px' }}>Backend Not Connected</h2>
-            <p style={{ color:'#7a8bb0', lineHeight:1.7, marginBottom:'20px' }}>{error}</p>
-            <code style={{ background:'rgba(255,255,255,0.06)', padding:'8px 16px', borderRadius:'8px', fontSize:'0.82rem', color:'#a8b9ff' }}>
+            <div style={{ marginBottom:'16px', color:'var(--alert)' }}><Icon name="alert" size={44} /></div>
+            <h2 style={{ color:'#f4616b', marginBottom:'12px' }}>Backend Not Connected</h2>
+            <p style={{ color:'#9ba2b8', lineHeight:1.7, marginBottom:'20px' }}>{error}</p>
+            <code style={{ background:'rgba(255,255,255,0.06)', padding:'8px 16px', borderRadius:'8px', fontSize:'0.82rem', color:'#9ba2b8' }}>
               cd backend && python app.py
             </code>
           </div>
@@ -324,24 +335,14 @@ const Progress = () => {
 
   return (
     <div className="progress-page">
-      {/* Animated background */}
-      <div className="pg-bg">
-        <div className="pg-bg-grid"/>
-        <div className="pg-bg-orb pg-orb1"/><div className="pg-bg-orb pg-orb2"/><div className="pg-bg-orb pg-orb3"/>
-      </div>
-
-      <BackButton />
-
       <div className="pg-content">
         {/* ── HEADER ──────────────────────────────────────────────── */}
         <header className="pg-header glass-panel">
           <div className="pg-header-left">
-            <span className="pg-eyebrow">AI INTELLIGENCE DASHBOARD</span>
             <h1 className="pg-title">
-              {loading ? 'Loading your data…' : `${stats.name ? stats.name + "'s " : ''}Fitness`}
-              {' '}<span className="pg-title-accent">Command Center</span>
+              {loading ? 'Loading your data…' : 'Progress'}
             </h1>
-            <p className="pg-subtitle">Real-time analytics pulled live from your workout history.</p>
+            <p className="pg-subtitle">Live numbers from your workout history, with a few suggestions.</p>
           </div>
           <div className="pg-header-right">
             <div className="pg-quick-stats">
@@ -351,17 +352,17 @@ const Progress = () => {
                 <>
                   <div className="pqs-item">
                     <span className="pqs-val">{stats.streak}</span>
-                    <span className="pqs-lbl">🔥 Day Streak</span>
+                    <span className="pqs-lbl">Day streak</span>
                   </div>
                   <div className="pqs-divider"/>
                   <div className="pqs-item">
                     <span className="pqs-val">{stats.totalWorkouts}</span>
-                    <span className="pqs-lbl">💪 Workouts</span>
+                    <span className="pqs-lbl">Workouts</span>
                   </div>
                   <div className="pqs-divider"/>
                   <div className="pqs-item">
                     <span className="pqs-val">{stats.weight > 0 ? fmtWeight(stats.weight) : '—'}<span style={{ fontSize:'1rem' }}>{stats.weight > 0 ? 'kg' : ''}</span></span>
-                    <span className="pqs-lbl">⚖️ Current</span>
+                    <span className="pqs-lbl">Current weight</span>
                   </div>
                 </>
               )}
@@ -373,7 +374,7 @@ const Progress = () => {
         <div className="pg-tabs">
           {['overview','analytics','goals','recovery'].map(t => (
             <button key={t} className={`pg-tab ${activeTab===t?'active':''}`} onClick={() => setActiveTab(t)}>
-              {{ overview:'🏠 Overview', analytics:'📊 Analytics', goals:'🎯 Goals', recovery:'💤 Recovery' }[t]}
+              {{ overview:'Overview', analytics:'Analytics', goals:'Goals', recovery:'Recovery' }[t]}
             </button>
           ))}
         </div>
@@ -386,7 +387,7 @@ const Progress = () => {
               {/* AI Health Score */}
               <div className="pg-card glass-panel pg-score-card">
                 <div className="pgc-header">
-                  <span className="pgc-icon">🧠</span>
+                  <span className="pgc-icon"><Em e="🧠" size={18} /></span>
                   <div>
                     <div className="pgc-title">AI Health Score</div>
                     <div className="pgc-sub">{loading ? 'Calculating…' : 'Based on your real data'}</div>
@@ -396,10 +397,10 @@ const Progress = () => {
                   {loading ? <Skeleton h={180} w={180} radius={90}/> : <CircularScore score={healthScore}/>}
                   <div className="pg-score-breakdown">
                     {[
-                      { label:'Consistency',  val: stats.consistencyPct,                                           color:'#818cf8' },
-                      { label:'Calorie Burn', val: Math.round(Math.min((stats.weekCalories/4500)*100,100)),         color:'#fb923c' },
-                      { label:'Streak Bonus', val: Math.min(Math.round((stats.streak/21)*100),100),                 color:'#f472b6' },
-                      { label:'Recovery',     val: fatigue.level==='optimal'?88:fatigue.level==='warning'?60:35,    color:'#34d399' },
+                      { label:'Consistency',  val: stats.consistencyPct,                                           color:'#a78bfa' },
+                      { label:'Calorie Burn', val: Math.round(Math.min((stats.weekCalories/4500)*100,100)),         color:'#ff7a45' },
+                      { label:'Streak Bonus', val: Math.min(Math.round((stats.streak/21)*100),100),                 color:'#ff7a45' },
+                      { label:'Recovery',     val: fatigue.level==='optimal'?88:fatigue.level==='warning'?60:35,    color:'#38d79f' },
                     ].map(item => (
                       <div key={item.label} className="pg-score-bar-row">
                         <span>{item.label}</span>
@@ -416,7 +417,7 @@ const Progress = () => {
               {/* Weekly AI Summary */}
               <div className="pg-card glass-panel pg-summary-card">
                 <div className="pgc-header">
-                  <span className="pgc-icon">📋</span>
+                  <span className="pgc-icon"><Em e="📋" size={18} /></span>
                   <div>
                     <div className="pgc-title">Weekly AI Summary</div>
                     <div className="pgc-sub">vs previous week</div>
@@ -430,8 +431,8 @@ const Progress = () => {
                   <>
                     <div className="pg-summary-quote">
                       {stats.totalWorkouts === 0
-                        ? '"No workouts logged yet. Complete your first workout to see your AI summary here! 🚀"'
-                        : `"You completed ${stats.weeklyWorkouts} workout${stats.weeklyWorkouts!==1?'s':''} this week, burned ${stats.weekCalories.toLocaleString()} kcal, and ${consDiff >= 0 ? `improved consistency by ${consDiff}%` : `had ${Math.abs(consDiff)}% less consistency than last week`}. ${goalPred.isAhead ? "You're ahead of schedule! 🚀" : 'Keep pushing toward your goal. 💪'}"`
+                        ? '"No workouts logged yet. Complete your first workout to see your AI summary here."'
+                        : `"You completed ${stats.weeklyWorkouts} workout${stats.weeklyWorkouts!==1?'s':''} this week, burned ${stats.weekCalories.toLocaleString()} kcal, and ${consDiff >= 0 ? `improved consistency by ${consDiff}%` : `had ${Math.abs(consDiff)}% less consistency than last week`}. ${goalPred.isAhead ? "You're ahead of schedule!" : 'Keep pushing toward your goal.'}"`
                       }
                     </div>
                     <div className="pg-kpi-row">
@@ -463,7 +464,7 @@ const Progress = () => {
                           <div className="pg-day-bar-track">
                             <div className="pg-day-bar-fill" style={{
                               height: d.calories > 0 ? `${Math.max((d.calories/600)*100,8)}%` : '4%',
-                              background: d.sessions > 0 ? 'linear-gradient(180deg,#818cf8,#6366f1)' : 'rgba(255,255,255,0.1)',
+                              background: d.sessions > 0 ? 'linear-gradient(180deg,#a78bfa,#6d5ce0)' : 'var(--line-strong)',
                               animationDelay:`${i*80}ms`
                             }}/>
                           </div>
@@ -478,7 +479,7 @@ const Progress = () => {
               {/* AI Recommendations */}
               <div className="pg-card glass-panel pg-recs-card">
                 <div className="pgc-header">
-                  <span className="pgc-icon">💡</span>
+                  <span className="pgc-icon"><Em e="💡" size={18} /></span>
                   <div>
                     <div className="pgc-title">Smart AI Recommendations</div>
                     <div className="pgc-sub">Based on your real activity</div>
@@ -492,7 +493,7 @@ const Progress = () => {
                   <div className="pg-recs-list">
                     {recommendations.map((r,i) => (
                       <div key={i} className={`pg-rec-item pg-rec-${r.type}`} style={{ animationDelay:`${i*100}ms` }}>
-                        <span className="pg-rec-icon">{r.icon}</span>
+                        <span className="pg-rec-icon"><Em e={r.icon} /></span>
                         <div className="pg-rec-body">
                           <strong>{r.title}</strong>
                           <p>{r.desc}</p>
@@ -508,7 +509,7 @@ const Progress = () => {
             <div className="pg-row pg-row-charts">
               <div className="pg-card glass-panel pg-chart-card">
                 <div className="pgc-header">
-                  <span className="pgc-icon">🔥</span>
+                  <span className="pgc-icon"><Em e="🔥" size={18} /></span>
                   <div>
                     <div className="pgc-title">Calories Burned — This vs Last Week</div>
                     <div className="pgc-sub">Daily comparison from your workouts</div>
@@ -518,28 +519,28 @@ const Progress = () => {
                   <AreaChart data={dailyData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
                     <defs>
                       <linearGradient id="calGrad1" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#818cf8" stopOpacity={0.4}/>
-                        <stop offset="95%" stopColor="#818cf8" stopOpacity={0}/>
+                        <stop offset="5%"  stopColor="#a78bfa" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#a78bfa" stopOpacity={0}/>
                       </linearGradient>
                       <linearGradient id="calGrad2" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%"  stopColor="#fb923c" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#fb923c" stopOpacity={0}/>
+                        <stop offset="5%"  stopColor="#5cb6ff" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#5cb6ff" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false}/>
-                    <XAxis dataKey="day" stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={12}/>
-                    <YAxis stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={11}/>
+                    <CartesianGrid stroke="var(--line)" vertical={false}/>
+                    <XAxis dataKey="day" stroke="#69708a" tickLine={false} axisLine={false} fontSize={12}/>
+                    <YAxis stroke="#69708a" tickLine={false} axisLine={false} fontSize={11}/>
                     <Tooltip content={<CustomTooltip/>}/>
-                    <Legend wrapperStyle={{ color:'#9bb4da', fontSize:12 }}/>
-                    <Area type="monotone" dataKey="calories"     name="This Week" stroke="#818cf8" strokeWidth={2.5} fill="url(#calGrad1)" dot={false}/>
-                    <Area type="monotone" dataKey="prevCalories" name="Last Week"  stroke="#fb923c" strokeWidth={2}   strokeDasharray="5 3" fill="url(#calGrad2)" dot={false}/>
+                    <Legend wrapperStyle={{ color:'#9ba2b8', fontSize:12 }}/>
+                    <Area type="monotone" dataKey="calories"     name="This Week" stroke="#a78bfa" strokeWidth={2.5} fill="url(#calGrad1)" dot={false}/>
+                    <Area type="monotone" dataKey="prevCalories" name="Last Week"  stroke="#5cb6ff" strokeWidth={2}   strokeDasharray="5 3" fill="url(#calGrad2)" dot={false}/>
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
 
               <div className="pg-card glass-panel pg-radar-card">
                 <div className="pgc-header">
-                  <span className="pgc-icon">🕸️</span>
+                  <span className="pgc-icon"><Em e="🕸️" size={18} /></span>
                   <div>
                     <div className="pgc-title">Fitness Profile</div>
                     <div className="pgc-sub">Computed from your real metrics</div>
@@ -547,9 +548,9 @@ const Progress = () => {
                 </div>
                 <ResponsiveContainer width="100%" height={240}>
                   <RadarChart data={radarData} margin={{ top:10, right:30, left:30, bottom:10 }}>
-                    <PolarGrid stroke="rgba(255,255,255,0.1)"/>
-                    <PolarAngleAxis dataKey="subject" tick={{ fill:'#9bb4da', fontSize:11 }}/>
-                    <Radar name="You" dataKey="A" stroke="#818cf8" fill="#818cf8" fillOpacity={0.25} strokeWidth={2}/>
+                    <PolarGrid stroke="var(--line-strong)"/>
+                    <PolarAngleAxis dataKey="subject" tick={{ fill:'#9ba2b8', fontSize:11 }}/>
+                    <Radar name="You" dataKey="A" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.25} strokeWidth={2}/>
                     <Tooltip content={<CustomTooltip/>}/>
                   </RadarChart>
                 </ResponsiveContainer>
@@ -564,7 +565,7 @@ const Progress = () => {
             <div className="pg-row pg-row-full">
               <div className="pg-card glass-panel pg-chart-card-lg">
                 <div className="pgc-header">
-                  <span className="pgc-icon">⏱️</span>
+                  <span className="pgc-icon"><Em e="⏱️" size={18} /></span>
                   <div>
                     <div className="pgc-title">Session Duration This Week</div>
                     <div className="pgc-sub">Minutes per day from your logs</div>
@@ -574,13 +575,13 @@ const Progress = () => {
                   <BarChart data={dailyData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
                     <defs>
                       <linearGradient id="durGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%"   stopColor="#34d399"/>
-                        <stop offset="100%" stopColor="#059669"/>
+                        <stop offset="0%"   stopColor="#38d79f"/>
+                        <stop offset="100%" stopColor="#1fb37f"/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false}/>
-                    <XAxis dataKey="day" stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={12}/>
-                    <YAxis stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={11}/>
+                    <CartesianGrid stroke="var(--line)" vertical={false}/>
+                    <XAxis dataKey="day" stroke="#69708a" tickLine={false} axisLine={false} fontSize={12}/>
+                    <YAxis stroke="#69708a" tickLine={false} axisLine={false} fontSize={11}/>
                     <Tooltip content={<CustomTooltip/>}/>
                     <Bar dataKey="duration" name="Minutes" fill="url(#durGrad)" radius={[8,8,0,0]}/>
                   </BarChart>
@@ -589,7 +590,7 @@ const Progress = () => {
 
               <div className="pg-card glass-panel pg-chart-card-lg">
                 <div className="pgc-header">
-                  <span className="pgc-icon">📅</span>
+                  <span className="pgc-icon"><Em e="📅" size={18} /></span>
                   <div>
                     <div className="pgc-title">This Week vs Last Week Duration</div>
                     <div className="pgc-sub">Side-by-side comparison</div>
@@ -597,13 +598,13 @@ const Progress = () => {
                 </div>
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={dailyData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false}/>
-                    <XAxis dataKey="day" stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={12}/>
-                    <YAxis stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={11}/>
+                    <CartesianGrid stroke="var(--line)" vertical={false}/>
+                    <XAxis dataKey="day" stroke="#69708a" tickLine={false} axisLine={false} fontSize={12}/>
+                    <YAxis stroke="#69708a" tickLine={false} axisLine={false} fontSize={11}/>
                     <Tooltip content={<CustomTooltip/>}/>
-                    <Legend wrapperStyle={{ color:'#9bb4da', fontSize:12 }}/>
-                    <Bar dataKey="duration"     name="This Week" fill="#818cf8" radius={[6,6,0,0]}/>
-                    <Bar dataKey="prevDuration" name="Last Week"  fill="#fb923c" radius={[6,6,0,0]}/>
+                    <Legend wrapperStyle={{ color:'#9ba2b8', fontSize:12 }}/>
+                    <Bar dataKey="duration"     name="This Week" fill="#a78bfa" radius={[6,6,0,0]}/>
+                    <Bar dataKey="prevDuration" name="Last Week"  fill="#5cb6ff" radius={[6,6,0,0]}/>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -613,7 +614,7 @@ const Progress = () => {
             <div className="pg-row pg-row-charts">
               <div className="pg-card glass-panel pg-chart-card">
                 <div className="pgc-header">
-                  <span className="pgc-icon">⚖️</span>
+                  <span className="pgc-icon"><Em e="⚖️" size={18} /></span>
                   <div>
                     <div className="pgc-title">Weight Trend</div>
                     <div className="pgc-sub">kg from your profile history</div>
@@ -626,13 +627,13 @@ const Progress = () => {
                 ) : (
                                 <ResponsiveContainer width="100%" height={220}>
                     <LineChart data={weightData} margin={{ top:10, right:10, left:-10, bottom:0 }}>
-                      <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false}/>
-                      <XAxis dataKey="week" stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={12}/>
-                      <YAxis stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={11}/>
+                      <CartesianGrid stroke="var(--line)" vertical={false}/>
+                      <XAxis dataKey="week" stroke="#69708a" tickLine={false} axisLine={false} fontSize={12}/>
+                      <YAxis stroke="#69708a" tickLine={false} axisLine={false} fontSize={11}/>
                       <Tooltip content={<CustomTooltip/>}/>
-                      <Line type="monotone" dataKey="weight" name="Weight (kg)" stroke="#5eead4" strokeWidth={2.5} dot={{ fill:'#5eead4', r:4 }} activeDot={{ r:7 }}/>
+                      <Line type="monotone" dataKey="weight" name="Weight (kg)" stroke="#38d79f" strokeWidth={2.5} dot={{ fill:'#38d79f', r:4 }} activeDot={{ r:7 }}/>
                       {stats.targetWeight > 0 && (
-                        <Line type="monotone" dataKey={() => stats.targetWeight} name="Target" stroke="#f87171" strokeWidth={1.5} strokeDasharray="6 3" dot={false}/>
+                        <Line type="monotone" dataKey={() => stats.targetWeight} name="Target" stroke="#f4616b" strokeWidth={1.5} strokeDasharray="6 3" dot={false}/>
                       )}
                     </LineChart>
                   </ResponsiveContainer>
@@ -642,7 +643,7 @@ const Progress = () => {
               {/* Activity table */}
               <div className="pg-card glass-panel pg-chart-card">
                 <div className="pgc-header">
-                  <span className="pgc-icon">📊</span>
+                  <span className="pgc-icon"><Em e="📊" size={18} /></span>
                   <div>
                     <div className="pgc-title">Daily Activity Log</div>
                     <div className="pgc-sub">This week's real sessions</div>
@@ -657,12 +658,12 @@ const Progress = () => {
                       {dailyData.map((d,i) => (
                         <tr key={d.day} style={{ animationDelay:`${i*60}ms` }}>
                           <td><strong>{d.day}</strong></td>
-                          <td><span style={{ color:'#fb923c' }}>{d.calories > 0 ? `${d.calories} kcal` : '—'}</span></td>
+                          <td><span style={{ color:'#ff7a45' }}>{d.calories > 0 ? `${d.calories} kcal` : '—'}</span></td>
                           <td>{d.duration > 0 ? `${d.duration} min` : '—'}</td>
                           <td>{d.sessions}</td>
                           <td>
                             <span className={`pg-status-badge ${d.sessions > 0 ? 'great' : 'low'}`}>
-                              {d.sessions > 0 ? '✅ Active' : '😴 Rest'}
+                              {d.sessions > 0 ? 'Active' : 'Rest'}
                             </span>
                           </td>
                         </tr>
@@ -681,7 +682,7 @@ const Progress = () => {
             <div className="pg-row pg-row-goals">
               <div className="pg-card glass-panel pg-goal-pred">
                 <div className="pgc-header">
-                  <span className="pgc-icon">🎯</span>
+                  <span className="pgc-icon"><Em e="🎯" size={18} /></span>
                   <div>
                     <div className="pgc-title">Goal Prediction System</div>
                     <div className="pgc-sub">AI-calculated from your real calorie data</div>
@@ -693,15 +694,15 @@ const Progress = () => {
                 </div>
                 <div className="pg-goal-metrics">
                   {[
-                    { label:'Current Weight',  val: stats.weight > 0 ? `${fmtWeight(stats.weight)} kg` : '—',       icon:'⚖️', color:'#5eead4' },
-                    { label:'Target Weight',   val: stats.targetWeight > 0 ? `${fmtWeight(stats.targetWeight)} kg` : '—', icon:'🎯', color:'#818cf8' },
-                    { label:'Remaining',       val: `${goalPred.remaining} kg`,                            icon:'📉', color:'#f472b6' },
-                    { label:'Weekly Loss Est', val: `${goalPred.weeklyLoss} kg/wk`,                        icon:'📊', color:'#fbbf24' },
-                    { label:'ETA',             val: goalPred.weeks < 99 ? `${goalPred.weeks} wks` : '—',   icon:'⏱️', color:'#34d399' },
-                    { label:'Goal Type',       val: stats.goalType.replace('_',' '),                       icon:'🏃', color:'#fb923c' },
+                    { label:'Current Weight',  val: stats.weight > 0 ? `${fmtWeight(stats.weight)} kg` : '—',       icon:'⚖️', color:'#38d79f' },
+                    { label:'Target Weight',   val: stats.targetWeight > 0 ? `${fmtWeight(stats.targetWeight)} kg` : '—', icon:'🎯', color:'#a78bfa' },
+                    { label:'Remaining',       val: `${goalPred.remaining} kg`,                            icon:'📉', color:'#ff7a45' },
+                    { label:'Weekly Loss Est', val: `${goalPred.weeklyLoss} kg/wk`,                        icon:'📊', color:'#a78bfa' },
+                    { label:'ETA',             val: goalPred.weeks < 99 ? `${goalPred.weeks} wks` : '—',   icon:'⏱️', color:'#38d79f' },
+                    { label:'Goal Type',       val: stats.goalType.replace('_',' '),                       icon:'🏃', color:'#ff7a45' },
                   ].map(m => (
                     <div key={m.label} className="pg-goal-metric">
-                      <span className="pgm-icon">{m.icon}</span>
+                      <span className="pgm-icon"><Em e={m.icon} size={17} /></span>
                       <div>
                         <div className="pgm-val" style={{ color:m.color }}>{m.val}</div>
                         <div className="pgm-lbl">{m.label}</div>
@@ -714,7 +715,7 @@ const Progress = () => {
                   <div className="pg-goal-progress-wrap">
                     <div className="pgp-labels">
                       <span>Start: {stats.startWeight} kg</span>
-                      <span style={{ color:'#34d399' }}>Now: {fmtWeight(stats.weight)} kg</span>
+                      <span style={{ color:'#38d79f' }}>Now: {fmtWeight(stats.weight)} kg</span>
                       <span>Target: {fmtWeight(stats.targetWeight)} kg</span>
                     </div>
                     <div className="pgp-track">
@@ -729,22 +730,22 @@ const Progress = () => {
               {/* Secondary Goals */}
               <div className="pg-card glass-panel pg-secondary-goals">
                 <div className="pgc-header">
-                  <span className="pgc-icon">🏆</span>
+                  <span className="pgc-icon"><Em e="🏆" size={18} /></span>
                   <div>
                     <div className="pgc-title">Fitness Milestones</div>
                     <div className="pgc-sub">Tracked from your real data</div>
                   </div>
                 </div>
                 {[
-                  { label:'Reach 30-day streak',     current:stats.streak,          target:30,   unit:'days', color:'#f472b6', icon:'🔥' },
-                  { label:'Burn 3000 kcal/week',      current:stats.weekCalories,    target:3000, unit:'kcal', color:'#fb923c', icon:'🔥' },
-                  { label:'100% weekly consistency',  current:stats.consistencyPct,  target:100,  unit:'%',    color:'#818cf8', icon:'📅' },
-                  { label:'Complete 50 workouts',     current:stats.totalWorkouts,   target:50,   unit:'',     color:'#34d399', icon:'💪' },
-                  { label:'Reach 5-day streak',       current:stats.streak,          target:5,    unit:'days', color:'#5eead4', icon:'⚡' },
+                  { label:'Reach 30-day streak',     current:stats.streak,          target:30,   unit:'days', color:'#ff7a45', icon:'🔥' },
+                  { label:'Burn 3000 kcal/week',      current:stats.weekCalories,    target:3000, unit:'kcal', color:'#ff7a45', icon:'🔥' },
+                  { label:'100% weekly consistency',  current:stats.consistencyPct,  target:100,  unit:'%',    color:'#a78bfa', icon:'📅' },
+                  { label:'Complete 50 workouts',     current:stats.totalWorkouts,   target:50,   unit:'',     color:'#38d79f', icon:'💪' },
+                  { label:'Reach 5-day streak',       current:stats.streak,          target:5,    unit:'days', color:'#38d79f', icon:'⚡' },
                 ].map(g => (
                   <div key={g.label} className="pg-sec-goal">
                     <div className="psg-top">
-                      <span>{g.icon} {g.label}</span>
+                      <span><Em e={g.icon} size={15} /> {g.label}</span>
                       <span style={{ color:g.color }}>{Math.min(g.current,g.target)}/{g.target} {g.unit}</span>
                     </div>
                     <div className="psg-track">
@@ -758,7 +759,7 @@ const Progress = () => {
             {/* 12-week trajectory */}
             <div className="pg-card glass-panel">
               <div className="pgc-header">
-                <span className="pgc-icon">📈</span>
+                <span className="pgc-icon"><Em e="📈" size={18} /></span>
                 <div>
                   <div className="pgc-title">12-Week Goal Trajectory</div>
                   <div className="pgc-sub">Predicted vs target based on your current pace</div>
@@ -774,13 +775,13 @@ const Progress = () => {
                   }))}
                   margin={{ top:10, right:10, left:-10, bottom:0 }}
                 >
-                  <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false}/>
-                  <XAxis dataKey="week" stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={12}/>
-                  <YAxis stroke="#7a8aaa" tickLine={false} axisLine={false} fontSize={11}/>
+                  <CartesianGrid stroke="var(--line)" vertical={false}/>
+                  <XAxis dataKey="week" stroke="#69708a" tickLine={false} axisLine={false} fontSize={12}/>
+                  <YAxis stroke="#69708a" tickLine={false} axisLine={false} fontSize={11}/>
                   <Tooltip content={<CustomTooltip/>}/>
-                  <Legend wrapperStyle={{ color:'#9bb4da', fontSize:12 }}/>
-                  <Line type="monotone" dataKey="predicted" name="Your Pace"    stroke="#818cf8" strokeWidth={2.5} dot={{ fill:'#818cf8', r:3 }}/>
-                  <Line type="monotone" dataKey="target"    name="Target Pace"  stroke="#34d399" strokeWidth={2}   strokeDasharray="6 3" dot={false}/>
+                  <Legend wrapperStyle={{ color:'#9ba2b8', fontSize:12 }}/>
+                  <Line type="monotone" dataKey="predicted" name="Your Pace"    stroke="#a78bfa" strokeWidth={2.5} dot={{ fill:'#a78bfa', r:3 }}/>
+                  <Line type="monotone" dataKey="target"    name="Target Pace"  stroke="#38d79f" strokeWidth={2}   strokeDasharray="6 3" dot={false}/>
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -793,14 +794,14 @@ const Progress = () => {
             <div className="pg-row pg-row-recovery">
               <div className="pg-card glass-panel pg-fatigue-card">
                 <div className="pgc-header">
-                  <span className="pgc-icon">🛡️</span>
+                  <span className="pgc-icon"><Em e="🛡️" size={18} /></span>
                   <div>
                     <div className="pgc-title">Fatigue & Recovery Status</div>
                     <div className="pgc-sub">Detected from your workout patterns</div>
                   </div>
                 </div>
                 <div className={`pg-fatigue-hero pg-fatigue-${fatigue.level}`}>
-                  <div className="pg-fatigue-icon">{fatigue.icon}</div>
+                  <div className="pg-fatigue-icon"><Em e={fatigue.icon} size={26} /></div>
                   <div className="pg-fatigue-label">{fatigue.label}</div>
                   <p className="pg-fatigue-tip">{fatigue.tip}</p>
                 </div>
@@ -812,12 +813,12 @@ const Progress = () => {
                     { label:'Recovery Score',     val:fatigue.level==='optimal'?'88/100':fatigue.level==='warning'?'61/100':'34/100', warn:fatigue.level!=='optimal', icon:'❤️‍🩹' },
                   ].map(m => (
                     <div key={m.label} className={`pg-fat-metric ${m.warn?'warn':''}`}>
-                      <span>{m.icon}</span>
+                      <span><Em e={m.icon} size={17} /></span>
                       <div>
                         <div className="pgfm-val">{m.val}</div>
                         <div className="pgfm-lbl">{m.label}</div>
                       </div>
-                      {m.warn && <span className="pgfm-warn">⚠️</span>}
+                      {m.warn && <span className="pgfm-warn"><Icon name="alert" size={14} /></span>}
                     </div>
                   ))}
                 </div>
@@ -825,7 +826,7 @@ const Progress = () => {
 
               <div className="pg-card glass-panel">
                 <div className="pgc-header">
-                  <span className="pgc-icon">📋</span>
+                  <span className="pgc-icon"><Em e="📋" size={18} /></span>
                   <div>
                     <div className="pgc-title">AI Recovery Protocol</div>
                     <div className="pgc-sub">Personalized for your current status</div>
@@ -843,7 +844,7 @@ const Progress = () => {
                     <div key={i} className="pg-rec-step" style={{ animationDelay:`${i*80}ms` }}>
                       <div className="prs-time">{step.time}</div>
                       <div className={`prs-dot prs-dot-${step.priority}`}/>
-                      <div className="prs-body"><span className="prs-icon">{step.icon}</span><span>{step.action}</span></div>
+                      <div className="prs-body"><span className="prs-icon"><Em e={step.icon} size={15} /></span><span>{step.action}</span></div>
                       <span className={`prs-badge prs-${step.priority}`}>{step.priority}</span>
                     </div>
                   ))}
@@ -853,12 +854,12 @@ const Progress = () => {
 
             <div className="pg-row pg-row-charts">
               {[
-                { title:'Consecutive Day Risk', desc:`Training ${stats.consecutiveDays} days straight ${stats.consecutiveDays>=4?`raises injury risk by ~${stats.consecutiveDays*8}%. A rest day now resets cortisol and boosts your next session by ~15%.`:'is within safe limits. Continue monitoring.'}`, icon:'🚨', color:'#f87171' },
-                { title:'Sleep & Performance', desc:`At ${stats.avgSleep}h average sleep, ${stats.avgSleep<7?'you\'re slightly under the 7h minimum. Each hour under 7h reduces fat metabolism by ~55%. Try sleeping 30 min earlier tonight.':'you\'re in the optimal recovery range. Keep this up for peak performance.'}`, icon:'😴', color:'#818cf8' },
-                { title:'Hydration Impact', desc:`At ${stats.hydration}% hydration, ${stats.hydration<75?'you may be losing up to 7% strength. Drinking 500ml pre-workout closes this gap significantly.':'you\'re well-hydrated. Maintain this level for optimal performance and recovery.'}`, icon:'💧', color:'#5eead4' },
+                { title:'Consecutive Day Risk', desc:`Training ${stats.consecutiveDays} days straight ${stats.consecutiveDays>=4?`raises injury risk by ~${stats.consecutiveDays*8}%. A rest day now resets cortisol and boosts your next session by ~15%.`:'is within safe limits. Continue monitoring.'}`, icon:'🚨', color:'#f4616b' },
+                { title:'Sleep & Performance', desc:`At ${stats.avgSleep}h average sleep, ${stats.avgSleep<7?'you\'re slightly under the 7h minimum. Each hour under 7h reduces fat metabolism by ~55%. Try sleeping 30 min earlier tonight.':'you\'re in the optimal recovery range. Keep this up for peak performance.'}`, icon:'😴', color:'#a78bfa' },
+                { title:'Hydration Impact', desc:`At ${stats.hydration}% hydration, ${stats.hydration<75?'you may be losing up to 7% strength. Drinking 500ml pre-workout closes this gap significantly.':'you\'re well-hydrated. Maintain this level for optimal performance and recovery.'}`, icon:'💧', color:'#38d79f' },
               ].map((insight,i) => (
                 <div key={i} className="pg-card glass-panel pg-insight-card" style={{ animationDelay:`${i*100}ms` }}>
-                  <div className="pg-insight-icon" style={{ color:insight.color }}>{insight.icon}</div>
+                  <div className="pg-insight-icon" style={{ color:insight.color }}><Em e={insight.icon} size={20} /></div>
                   <h3 style={{ color:insight.color }}>{insight.title}</h3>
                   <p>{insight.desc}</p>
                 </div>
