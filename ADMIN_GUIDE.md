@@ -47,4 +47,4 @@ Without them the Email button explains that email isn't configured.
 ## Demo admin (sandbox)
 `admin@gmail.com` / `Admin@123` opens a sandboxed copy of this console. It only lists the demo members, and nothing it
 does (suspend, delete, role changes, settings, announcements, points, exports…) can reach real data or real members.
-Emails are simulated. Everything is restored when the demo admin signs out.
+Emails are simulated. Every visitor gets their own private sandbox, so many people can try it at once without affecting each other. Everything is restored when the visitor signs out of a demo account, or automatically 30 minutes after the sandbox was built.

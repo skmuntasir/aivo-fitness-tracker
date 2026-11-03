@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Icon from './Icon';
 import Avatar from './Avatar';
@@ -6,6 +6,7 @@ import EmptyState from './EmptyState';
 import API from "../services/api";
 import { useFeedback } from './Feedback';
 import { BadgeStrip } from './Badges';
+import { readData, refreshData, useCachedData, writeData } from '../utils/dataCache';
 import './LeaderboardPage.css';
 
 const TABS = [
@@ -43,13 +44,14 @@ function PlayerSheet({ user, onClose, onRelation }) {
   const { toast } = useFeedback();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
-  const [badges, setBadges] = useState(null);   // earned badges of this player
+  const badgeKey = `badges-of:${user.id}`;
+  const [badges, setBadges] = useState(() => readData(badgeKey)?.data?.badges || null);   // earned badges of this player
 
   useEffect(() => {
     let alive = true;
-    API.get(`/badges/user/${user.id}`).then((r) => { if (alive) setBadges(r.data.badges || []); }).catch(() => { if (alive) setBadges([]); });
+    refreshData(badgeKey, { maxAge: 60000 }).then((d) => { if (alive) setBadges(d.badges || []); }).catch(() => { if (alive) setBadges((b) => b || []); });
     return () => { alive = false; };
-  }, [user.id]);
+  }, [badgeKey]);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -122,27 +124,11 @@ function PlayerSheet({ user, onClose, onRelation }) {
 }
 
 function LeaderboardTable({ scope }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  // Last standings are shown instantly and refreshed quietly in the background (see utils/dataCache.js)
+  const { data, loading, error: loadError, reload } = useCachedData(`lb:${scope}`);
   const [selectedId, setSelectedId] = useState(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    setData(null);
-    try {
-      const response = await API.get("/workouts/leaderboard", { params: { scope } });
-      if (response.data.success) setData(response.data);
-      else setError("Failed to load leaderboard");
-    } catch {
-      setError("Network error");
-    } finally {
-      setLoading(false);
-    }
-  }, [scope]);
-
-  useEffect(() => { load(); }, [load]);
+  const error = loadError ? 'Network error' : '';
+  const load = reload;
 
   if (loading) return <div className="lb-table-card"><div className="lb-loading">Loading leaderboard…</div></div>;
   if (error) {
@@ -159,10 +145,11 @@ function LeaderboardTable({ scope }) {
   const all = me && !rows.some((r) => r.id === me.id) ? [...rows, me] : rows;
   const selected = all.find((r) => r.id === selectedId) || null;
   const updateRelation = (id, relation, request_id) => {
-    setData((d) => d && ({
-      ...d,
-      leaderboard: d.leaderboard.map((r) => (r.id === id ? { ...r, relation, request_id } : r)),
-    }));
+    if (!data) return;
+    writeData(`lb:${scope}`, {   // saved copy + this screen update together
+      ...data,
+      leaderboard: data.leaderboard.map((r) => (r.id === id ? { ...r, relation, request_id } : r)),
+    });
   };
   const meInList = rows.some((r) => r.is_me);
 

@@ -2,6 +2,8 @@
 // Pages are code-split (lazy). To make navigation feel instant we download the other pages'
 // chunks while the browser is idle, and again on hover/touch of a link. Each import() is cached
 // by the module system, so calling these repeatedly is free.
+import { prefetchRouteData, warmData } from './dataCache';
+
 const loaders = {
   '/home': () => import('../pages/Home'),
   '/progress': () => import('../pages/Progress'),
@@ -15,6 +17,7 @@ const loaders = {
 
 const done = new Set();
 export function prefetchRoute(path) {
+  prefetchRouteData(path);   // data is cheap to re-check (shared request, 20s reuse), so do it on every hover
   const key = Object.keys(loaders).find((k) => path === k || path.startsWith(`${k}/`));
   if (!key || done.has(key)) return;
   done.add(key);
@@ -35,8 +38,9 @@ export function warmUp() {
   // Only warm pages for signed-in users (everything except login/register needs a session)
   idle(() => {
     if (!localStorage.getItem('token')) { prefetchRoute('/register'); return; }
-    ['/home', '/progress', '/community', '/friends', '/profile', '/leaderboard'].forEach((p, i) =>
+    ['/home', '/progress', '/community', '/friends', '/profile', '/leaderboard', '/chat'].forEach((p, i) =>
       setTimeout(() => prefetchRoute(p), i * 250));
+    warmData();
   });
 }
 

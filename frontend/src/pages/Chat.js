@@ -145,7 +145,7 @@ const Chat = () => {
                     Load earlier messages
                   </button>
                 )}
-                {!bucket?.loaded ? (
+                {!bucket?.loaded && items.length === 0 ? (
                   <div className="chat-msg-skeleton">
                     <div className="sk" style={{ width: '46%', height: 44 }} />
                     <div className="sk" style={{ width: '38%', height: 44, alignSelf: 'flex-end' }} />

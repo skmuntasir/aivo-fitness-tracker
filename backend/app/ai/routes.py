@@ -6,6 +6,7 @@ import requests as http_requests
 import os
 from app.utils import rate_limit, utcnow
 from app.runtime import get_settings
+from app.ai import memory as coach_memory
  
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
  
@@ -36,6 +37,12 @@ def get_user_profile(mongo, user_id):
             "streak":             user.get("streak", 0),
             "points":             user.get("points", 0),
         }
+        profile["coach_memory"] = user.get("coach_memory") or []   # plans already given (see ai/memory.py)
+        try:   # the member's own workout names (Profile -> Workout names) so the coach can use them in plans
+            from app.routes import workout_prefs_of
+            profile["custom_workouts"] = workout_prefs_of(user)["custom"]
+        except Exception:
+            profile["custom_workouts"] = {}
         try:
             profile["total_workouts"] = mongo.db.workouts.count_documents({"user_id": str(user_id)})
             recent = list(mongo.db.workouts.find(
@@ -101,6 +108,12 @@ def build_system_prompt(profile):
         prompt += "Favorite Activity: " + fav_act + "\n"
     if medical:
         prompt += "Medical Notes: " + medical + "\n"
+    custom = profile.get("custom_workouts") or {}
+    if custom.get("gym"):
+        prompt += "Own Gym Workout Names: " + ", ".join(custom["gym"]) + "\n"
+    if custom.get("home"):
+        prompt += "Own Home Workout Names: " + ", ".join(custom["home"]) + "\n"
+    prompt += coach_memory.prompt_block(profile.get("coach_memory"))
  
     prompt += (
         "\nRULES:\n"
@@ -112,7 +125,13 @@ def build_system_prompt(profile):
         "'- ' bullets for lists, '1. ' for ordered steps, **bold** for key terms. Never wrap everything in one paragraph.\n"
         "- For a weekly workout or meal plan use one '## Day' heading per day (for example '## Monday: Upper body') "
         "with a bullet per exercise or meal (for example '- Bench Press: 3 x 12'). Do NOT use tables or '---' lines.\n"
-        "- End plans with one short tip line.\n"
+        "- In a workout plan put ONLY the exercise name before the colon, e.g. '- Bench Press: 3 x 12' (no extra words, "
+        "no numbering inside the name). If the member lists their own workout names, or has saved their own names above, "
+        "use those names exactly as written.\n"
+        "- After EVERY workout plan add one last line exactly like [[WORKOUTS: Bench Press | Shoulder Press | Plank]] that "
+        "lists every exercise name used in the plan, spelled exactly as in the plan, separated by ' | '. The app hides this "
+        "line and uses it for the member's 'Add to workout timer' button. Never mention or explain it.\n"
+        "- End plans with one short tip line (put the [[WORKOUTS: ...]] line after it).\n"
         "- You are FitAI, not Llama or any other AI.\n"
         "- Use light emojis occasionally (💪 🔥 ✅).\n"
     )
@@ -150,7 +169,7 @@ def ai_chat():
     groq_messages = [{"role": "system", "content": system_prompt}]
     for msg in messages:
         role = msg.get("role", "user")
-        text = str(msg.get("content", ""))[:2000]
+        text = str(msg.get("content", ""))[:3000 if role == "assistant" else 2000]
         groq_messages.append({
             "role": "assistant" if role == "assistant" else "user",
             "content": text
@@ -190,6 +209,7 @@ def ai_chat():
             mongo.db.ai_usage.insert_one({"user_id": str(user_id), "ts": utcnow()})
         except Exception:
             pass
+        coach_memory.remember(mongo, user_id, _last_user_text(messages), ai_text)
         return jsonify({"success": True, "reply": ai_text.strip(), "model": "groq"}), 200
  
     except http_requests.Timeout:
@@ -198,6 +218,13 @@ def ai_chat():
         return jsonify({"success": False, "message": "AI error: " + str(e)}), 200
  
  
+def _last_user_text(messages):
+    for m in reversed(messages):
+        if (m.get("role") or "user") != "assistant":
+            return str(m.get("content", ""))
+    return ""
+
+
 def _sse(obj):
     return "data: " + json.dumps(obj, ensure_ascii=False) + "\n\n"
 
@@ -229,13 +256,14 @@ def ai_chat_stream():
     for msg in messages:
         role = msg.get("role", "user")
         groq_messages.append({"role": "assistant" if role == "assistant" else "user",
-                              "content": str(msg.get("content", ""))[:2000]})
+                              "content": str(msg.get("content", ""))[:3000 if role == "assistant" else 2000]})
 
     payload = {"model": GROQ_MODEL, "messages": groq_messages, "max_tokens": 1024,
                "temperature": 0.7, "stream": True}
 
     def generate():
         got_text = False
+        full = []
         yield ": stream-open\n\n"   # flush the headers right away so proxies start relaying
         try:
             with http_requests.post(
@@ -265,6 +293,7 @@ def ai_chat_stream():
                     piece = delta.get("content")
                     if piece:
                         got_text = True
+                        full.append(piece)
                         yield _sse({"t": piece})
         except http_requests.Timeout:
             yield _sse({"error": "AI request timed out. Please try again."})
@@ -281,10 +310,20 @@ def ai_chat_stream():
             mongo.db.ai_usage.insert_one({"user_id": str(user_id), "ts": utcnow()})
         except Exception:
             pass
+        coach_memory.remember(mongo, user_id, _last_user_text(messages), "".join(full))
         yield _sse({"done": True})
 
     return Response(stream_with_context(generate()), mimetype="text/event-stream", headers={
         "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", "Connection": "keep-alive"})
+
+
+@ai_bp.route("/memory", methods=["DELETE"])
+@jwt_required()
+def clear_memory():
+    """'Clear chat' in the app: the coach forgets the plans it remembered for this member."""
+    from app import mongo
+    coach_memory.clear(mongo, get_jwt_identity())
+    return jsonify({"success": True})
 
 
 @ai_bp.route("/profile", methods=["GET"])

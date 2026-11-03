@@ -1,3 +1,76 @@
+# v9.17 — a deleted demo account stays deleted for the full 30 minutes
+- When a visitor's demo admin deletes a demo account, it stays deleted for 30 minutes counted from the deletion - signing out or signing the demo admin in again no longer brings it back. Those sign-outs still reset everything else in that visitor's demo (posts, settings, suspensions, edits). After the 30 minutes the account returns by itself on the next request. Only that browser's demo is affected.
+
+# v9.16 — deleted demo accounts stay deleted until the reset
+- In a visitor's demo, once the demo admin deletes a demo account it really is gone for that visitor: signing in to it says "This demo account was deleted. It returns automatically in about N min.", and creating (or renaming a user to) the same email says "That demo account can't be created yet. Please wait about N min for the demo to reset." It comes back at the 30-minute reset (or when the visitor signs out of a demo account). The old silent "bring the account back at sign-in" safety net was removed. Other visitors are unaffected.
+
+# v9.15 — private, self-resetting demo for every visitor
+The three demo accounts used to share ONE demo world, so two recruiters at the same time could see (and undo) each other's changes. Each visitor now gets their **own private sandbox**:
+- **Own world per visitor:** the first demo sign-in from a browser creates a fresh copy of the demo (own demo admin, two demo members, posts, workouts, settings, announcements ...). Anything a visitor does - delete or suspend a demo member, post, change settings - exists only in their sandbox. Any number of visitors can use the demo at once. The demo admin and demo members opened in the *same* browser share that browser's sandbox, so "admin deletes user 1, then I look at user 1" works as expected.
+- **Back to original on sign-out:** signing out of *any* demo account (member or admin, from the app or the admin console) rebuilds that visitor's sandbox: deleted / suspended / edited demo members, posts, settings all return. Signing in as the demo admin also starts from a fresh sandbox.
+- **Back to original after 30 minutes:** a sandbox is rebuilt automatically 30 minutes after it was (re)built, even if the visitor never signs out. The check happens on the next request (no timer needs to be running, so it also works on hosts that put the server to sleep).
+- **How (no route was touched):** `backend/app/demo.py` now pins every demo database call to one sandbox with a hidden `_ds` field (reads, writes, aggregations, counts); the id travels in the demo login token (`ds`). Demo online counts, settings caches and the demo `settings` document are per sandbox too. Old demo tokens (no `ds`) are refused with "sign in again".
+- **Housekeeping:** abandoned sandboxes are deleted 35 minutes after their last use (a returning visitor just gets a new one); a ceiling of 2000 live sandboxes drops the least recently used first; one network can create at most 40 new sandboxes per 10 minutes. Leftovers of the old shared demo world are removed at start-up and the old global unique-email index on `demo_users` is replaced by a per-sandbox one.
+- **Frontend:** the browser keeps its sandbox id (`aivo_demo_session`, `utils/demoSession.js`) and sends it as `X-Demo-Session` with demo sign-ins. Real accounts are unaffected.
+- **Tests:** `tests_demo.py` gained `run_sessions()` - two visitors isolated, logout reset, 30-minute reset, 12 parallel sandboxes, idle clean-up, legacy token refused, real data unchanged. `tests_workout_names.py` now pins its context to a sandbox id.
+
+# v9.14 — demo sandbox hardening (audit follow-up)
+Full audit of demo-vs-real isolation found no way for demo accounts to read or change real data. Three gaps closed:
+- **Reserved demo emails in the admin console:** a real admin can no longer create a real member with, or change a real member's email to, `admin@gmail.com` / `user1@gmail.com` / `user2@gmail.com` (those logins always go to the demo sandbox, so such a member could never sign in). Registration already blocked this.
+- **Demo can't take itself offline:** maintenance mode is ignored inside the demo sandbox, so a demo admin can no longer lock every demo visitor (and the normal login page) out. Real maintenance mode is unchanged.
+- **Demo admin sees no real server details:** the System health page returns neutral values for the demo (no real Python version, uptime, environment, AI/SMTP status or database latency).
+- **New `backend/tests_demo.py`:** end-to-end isolation test (run `python tests_demo.py`). It uses the demo admin and demo users, tries to reach a real member, flips every global switch, then asserts the real database is unchanged. It fails on v9.13 and passes now.
+
+# v9.13 — every member page opens from a saved copy
+Audit of all member pages. Already instant: Home, Community, Friends list (while navigating), Progress, Leaderboard, Profile. Gaps closed:
+- **Friends, Chat and the chat panel after a reload:** friends, friend requests and the latest 40 messages of each conversation are now saved (per member, wiped on logout) and shown immediately, then refreshed quietly. The newest 3 conversations are also loaded in the background, and the Chat page code is pre-loaded with the other pages.
+- **Announcement banner** (Home) no longer pops in late: it shows its saved copy first.
+- **Home stat tiles** (streak, points, workouts) are filled on first paint from the last known numbers.
+- **AI coach greeting** reuses the saved Progress data instead of making its own slow request.
+- Login and Register have no data to load. `Leaderboard.jsx`, `LeaderboardModal.jsx` and `UserStats.jsx` are not used anywhere in the app and were left untouched.
+
+# v9.12 — fast admin console (all pages, demo admin included)
+- **Saved copies for every admin page** (`admin/adminCache.js`, used by `useFetch`): after a page has been opened once, it shows the last answer instantly and refreshes it quietly in the background. The spinner now only appears for a request that was never made before. Kept in memory and in the tab's sessionStorage (so reloads are instant too), private to the signed-in admin session, wiped on sign-in, sign-out and session expiry. Identical requests made at the same time share one network call.
+- **Warm-up:** once signed in, the console fetches every page's code and first screen of data while idle (Dashboard, Users, Workouts, Posts & reports, Leaderboard, Announcements, Audit, Settings), so the first click is usually instant as well.
+- **Sidebar badge** no longer re-runs the heavy dashboard query on every click (reuses a 30-second-old answer).
+- **Dashboard backend:** the overview used about 27 separate database calls; it now needs about 9 (one grouped query per collection), with the same numbers (a plain-count fallback remains). System health reads collection sizes from metadata instead of counting documents.
+- The demo admin uses exactly the same code, so it is fast too.
+- Tests: `tests_workout_names.py` checks that the fast overview equals the plain-count result.
+
+# v9.11 — AI coach: chat stays until logout, remembers its plans, reliable "Add to workout timer"
+- **Chat is kept until you log out.** The coach conversation survives moving to other pages and reloads (`utils/coachChat.js`, per member, wiped on logout), and is what gets sent back to the coach, so it no longer forgets what it just said. A trash button in the coach header clears the chat.
+- **The coach remembers its plans.** After each workout or meal plan the server keeps a short note of it (`coach_memory` on the user, last 6, `backend/app/ai/memory.py`) and adds it to the coach's instructions: new plans build on earlier ones (progression, rotation) instead of being random. This memory stays with the account across logouts; "Clear chat" (`DELETE /api/ai/memory`) wipes it.
+- **"Add to workout timer" now shows on every workout plan.** It used to depend on the reply happening to contain words like "sets" and "reps". The coach now ends each workout plan with a hidden `[[WORKOUTS: A | B | C]]` line (never shown, not saved with plans); the button reads it. Replies without it are read from lines like "Bench Press: 3 x 12". The button stays available for the same reply ("On your timer · add more") and for each new plan.
+- Saved/added state of a reply is kept with the chat. Coach history sent to the model keeps up to 3000 characters per coach reply.
+- Tests: `tests_workout_names.py` covers the memory (stored once, capped at 6, in the prompt, cleared).
+
+# v9.10 — instant Progress, Leaderboard and Profile
+- New `frontend/src/utils/dataCache.js`: the same "show what we saw last, refresh quietly" approach the Community feed uses, for Progress, Leaderboard (Friends + Global), Profile (details, health metrics, badges, saved plans) and the player badge sheet. Saved in memory while you move around and in localStorage across reloads, private per member, wiped on logout. Profile photos are never written to it.
+- These pages no longer open on a spinner or skeleton once you have visited them; fresh numbers slide in a moment later. A failed refresh keeps the saved copy on screen.
+- Warm-up: the data is fetched when the app is idle, when Home opens (right after sign-in) and when you hover or touch the menu link, with the page code. Calls for the same data share one request.
+- Finishing a workout refreshes the saved Progress / Leaderboard / Profile copies in the background, so the next visit is already up to date.
+
+# v9.9 — workout names, AI coach to timer, demo parity
+**Workout names (Profile)**
+- New **Workout names** card on the profile: add your own Gym / Home workout names next to the built-in ones, and tick the names you want your workout timer to show. Your names are private to your profile (saved on the server, so they follow you across devices) and can be removed with the ×. Built-in names can be hidden but never deleted. Everything is alphabetical, in the same even grid as the timer. Default behaviour is unchanged (nothing selected = the timer shows every name).
+- Workout timer reads those choices (cached for an instant open, refreshes live when the profile or the coach changes them).
+- Backend: `GET/PUT /api/users/workout-prefs` (stored as `workout_prefs` on the user; names are cleaned, de-duplicated and capped).
+
+**AI coach**
+- The coach now knows your own workout names and uses them in plans.
+- Workout plans get an **Add to workout timer** button: pick the names (Gym / Home is detected, or choose for new ones) and they land on your timer. Add or remove them any time from Profile → Workout names.
+
+**Demo accounts**
+- Demo admin and demo members use exactly the same code and features as real accounts, inside the isolated `demo_*` sandbox. Added: starter data so every area has something to show (a saved coach plan, a live announcement banner, an open report in the moderation queue, workout history with timer names, sample own workout names), and demo members can now use **Delete account** (temporary: the demo world is rebuilt and the account is back at the next sign-in).
+- Demo workouts now store `points` (1 minute = 1 point, same as real workouts) and each demo member's total is the sum of them, so seed data, daily cap and leaderboard agree.
+- Tests: `backend/tests_workout_names.py` (workout names, AI prompt, demo parity).
+
+# v9.8 — points, colours, timer grid
+- Points: 1 minute = 1 point (whole minutes, no streak multiplier, no half-rate after an hour; 600/day cap kept).
+- Streak colours: 1–2, 2–3, 3–5, 5–8, 8+ min (heatmap, week dots and timer ring share `utils/heat.js`).
+- Workout timer: workout names in an even, centred grid; golden "Saved" card appears the moment Stop is tapped.
+- Home: Streak freeze and Friend challenge bars are cached per user (`utils/engageCache.js`) so they show intact on refresh; no challenge = nothing shown.
+
 # v9 — electric-purple activity colours, demo accounts, calendar tooltip
 
 **Activity colours.** The streak calendar, the weekly dots on Home, the workout-timer ring and the legend now use one
@@ -19,8 +92,7 @@ Isolation (see `backend/app/demo.py`): demo sessions read/write `demo_*` collect
 Real members never see demo data and demo sessions never see real members, the leaderboard, posts, chats or admin lists.
 The demo admin has the full admin console but every change lands in the sandbox (suspend, delete, settings, announcements,
 points, leaderboard reset…). The demo world is rebuilt when the demo admin signs out (and when a demo admin signs in), so
-suspended/deleted/edited demo members are restored. Safety nets: no real email is ever sent from the sandbox, demo accounts
-can't be self-deleted, `admin@gmail.com`/`user1@gmail.com`/`user2@gmail.com` can't be registered as real accounts, and a
+suspended/deleted/edited demo members are restored. Safety nets: no real email is ever sent from the sandbox, "deleting" a demo account only resets the sandbox (it is back at the next sign-in), `admin@gmail.com`/`user1@gmail.com`/`user2@gmail.com` can't be registered as real accounts, and a
 demo suspension left behind for 30+ minutes is auto-restored at the next demo login.
 
 **v9.7: fair-play workout points.**
@@ -236,9 +308,3 @@ new `frontend/src/utils/feedCache.js`. No new dependencies, no DB migration (old
 **Vercel**
 - Frontend root directory `frontend/`; env var `VITE_BACKEND_URL=https://<your-backend>`; `vercel.json` SPA rewrite already included.
 - Chat presence/typing use Socket.IO, so the backend must run on a persistent host (Render/Railway/Fly), not Vercel serverless, with `CORS_ORIGIN=https://<your-app>.vercel.app`.
-
-## v9.8
-- Points: 1 minute = 1 point (whole minutes, no streak multiplier, no half-rate after an hour; 600/day cap kept).
-- Streak colours: 1–2, 2–3, 3–5, 5–8, 8+ min (heatmap, week dots and timer ring share `utils/heat.js`).
-- Workout timer: workout names in an even, centred grid; golden "Saved" card appears the moment Stop is tapped.
-- Home: Streak freeze and Friend challenge bars are cached per user (`utils/engageCache.js`) so they show intact on refresh; no challenge = nothing shown.

@@ -4,7 +4,7 @@ import {
   BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis,
   CartesianGrid, XAxis, YAxis, Tooltip, Legend,
 } from 'recharts';
-import API from '../services/api';
+import { useCachedData } from '../utils/dataCache';
 import './Progress.css';
 import Icon from '../components/Icon';
 import BackButton from '../components/BackButton';
@@ -226,72 +226,47 @@ const Skeleton = ({ h = 24, w = '100%', radius = 8 }) => (
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 const Progress = () => {
-  const [stats, setStats]         = useState(EMPTY_STATS);
-  const [dailyData, setDailyData] = useState(EMPTY_DAILY);
-  const [weightData, setWeightData] = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // ── Fetch real data from backend ──────────────────────────────────────────
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await API.get('/analytics/progress-summary');
+  // Last data is shown instantly and refreshed quietly in the background (see utils/dataCache.js)
+  const { data: progressData, loading, error: loadError } = useCachedData('progress');
+  const error = loadError ? 'Backend connection failed. Make sure your Flask server is running on port 5000.' : null;
 
-        if (res.data.success) {
-          const s = res.data.summary;
-
-          // Map backend keys → component state keys
-          setStats({
-            name:               s.name || 'Athlete',
-            streak:             s.streak || 0,
-            points:             s.points || 0,
-            totalWorkouts:      s.total_workouts || 0,
-            weeklyWorkouts:     s.weekly_workouts || 0,
-            prevWeekWorkouts:   s.prev_week_workouts || 0,
-            totalCalories:      s.total_calories || 0,
-            weekCalories:       s.week_calories || 0,
-            prevWeekCalories:   s.prev_week_calories || 0,
-            consistencyPct:     s.consistency_pct || 0,
-            prevConsistencyPct: s.prev_consistency_pct || 0,
-            consecutiveDays:    s.consecutive_days || 0,
-            weight:             s.weight || 0,
-            targetWeight:       s.target_weight || 0,
-            startWeight:        s.start_weight || 0,
-            goalType:           s.goal_type || 'fat_loss',
-            goalWeeks:          s.goal_weeks || 12,
-            avgSleep:           s.avg_sleep || 7.0,
-            hydration:          s.hydration || 75,
-          });
-
-          // Build daily chart data (merge this week + prev week)
-          const thisWeek = s.daily_data || EMPTY_DAILY;
-          const prevWeek = s.prev_daily_data || EMPTY_DAILY;
-          const combined = thisWeek.map((d, i) => ({
-            ...d,
-            prevCalories: prevWeek[i]?.calories || 0,
-            prevDuration: prevWeek[i]?.duration || 0,
-          }));
-          setDailyData(combined);
-
-          setWeightData(s.weight_history || []);   // real entries only (backend no longer fabricates a trend)
-
-        } else {
-          setError('Could not load your fitness data. Please try again.');
-        }
-      } catch (err) {
-        console.error('Progress API error:', err);
-        setError('Backend connection failed. Make sure your Flask server is running on port 5000.');
-      } finally {
-        setLoading(false);
-      }
+  const { stats, dailyData, weightData } = useMemo(() => {
+    const s = progressData?.summary;
+    if (!s) return { stats: EMPTY_STATS, dailyData: EMPTY_DAILY, weightData: [] };
+    // Map backend keys → component state keys
+    const mapped = {
+      name:               s.name || 'Athlete',
+      streak:             s.streak || 0,
+      points:             s.points || 0,
+      totalWorkouts:      s.total_workouts || 0,
+      weeklyWorkouts:     s.weekly_workouts || 0,
+      prevWeekWorkouts:   s.prev_week_workouts || 0,
+      totalCalories:      s.total_calories || 0,
+      weekCalories:       s.week_calories || 0,
+      prevWeekCalories:   s.prev_week_calories || 0,
+      consistencyPct:     s.consistency_pct || 0,
+      prevConsistencyPct: s.prev_consistency_pct || 0,
+      consecutiveDays:    s.consecutive_days || 0,
+      weight:             s.weight || 0,
+      targetWeight:       s.target_weight || 0,
+      startWeight:        s.start_weight || 0,
+      goalType:           s.goal_type || 'fat_loss',
+      goalWeeks:          s.goal_weeks || 12,
+      avgSleep:           s.avg_sleep || 7.0,
+      hydration:          s.hydration || 75,
     };
-
-    fetchData();
-  }, []);
+    // Build daily chart data (merge this week + prev week)
+    const thisWeek = s.daily_data || EMPTY_DAILY;
+    const prevWeek = s.prev_daily_data || EMPTY_DAILY;
+    const combined = thisWeek.map((d, i) => ({
+      ...d,
+      prevCalories: prevWeek[i]?.calories || 0,
+      prevDuration: prevWeek[i]?.duration || 0,
+    }));
+    return { stats: mapped, dailyData: combined, weightData: s.weight_history || [] };   // real entries only
+  }, [progressData]);
 
   // ── Derived / memoised values ─────────────────────────────────────────────
   const healthScore     = useMemo(() => computeHealthScore(stats), [stats]);

@@ -31,7 +31,7 @@ export default function AdminLayout({ children }) {
   // Sidebar badge: open reports (refreshed every 90s and on navigation)
   useEffect(() => {
     let alive = true;
-    const load = () => ADMIN.get('/dashboard/overview').then((r) => alive && setOpenReports(r.data.kpi.open_reports)).catch(() => {});
+    const load = () => ADMIN.get('/dashboard/overview', { maxAge: 30000 }).then((r) => alive && setOpenReports(r.data.kpi.open_reports)).catch(() => {});
     load();
     const t = setInterval(load, 90000);
     return () => { alive = false; clearInterval(t); };
@@ -71,7 +71,7 @@ export default function AdminLayout({ children }) {
         <header className="a-top">
           <button className="a-icon-btn a-burger" onClick={() => setOpen(true)} aria-label="Open menu"><Icon name="menu" /></button>
           <div className="a-grow" />
-          {admin?.demo && <span className="a-demo-pill" title="Everything you change here stays in the demo sandbox and resets when you sign out.">Demo sandbox</span>}
+          {admin?.demo && <span className="a-demo-pill" title="Everything you change here stays in the demo sandbox and resets when you sign out or after 30 minutes.">Demo sandbox</span>}
           <button className="a-icon-btn" onClick={toggleTheme} aria-label="Toggle theme" title="Toggle light / dark">
             <Icon name={theme === 'light' ? 'moon' : 'sun'} />
           </button>

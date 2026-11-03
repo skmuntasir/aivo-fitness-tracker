@@ -45,6 +45,9 @@ See `ADMIN_GUIDE.md`. Open `/admin/login`; the first registered user is an admin
 ## Demo accounts
 `/login` lists three clickable demo accounts (demo admin, demo user 1, demo user 2). They are created automatically on
 first start in separate `demo_*` collections of the same database and are fully isolated from real data. The demo admin signs
-in on the normal `/login` page and is taken to the demo admin console. Signing the demo admin out resets the demo world. To rebuild it by hand, delete the
-`demo_users` collection and restart the backend. Note: the emails `admin@gmail.com`, `user1@gmail.com` and `user2@gmail.com`
+in on the normal `/login` page and is taken to the demo admin console. Every visitor gets a private copy of the demo world (stored in the same `demo_*` collections, tagged with a hidden `_ds` id), so many people can try it at the same time. Signing out of a demo account resets that visitor's copy, and it also resets itself 30 minutes after it was built. Nothing needs to be set up or scheduled. Note: the emails `admin@gmail.com`, `user1@gmail.com` and `user2@gmail.com`
 are reserved for the demo; a real member who already uses one of them should change it.
+
+Demo members and the demo admin have every feature a real member/admin has (including workout names, the AI coach, plans, moderation, announcements and delete-account). It is all temporary: the visitor's demo world is rebuilt when they sign out of a demo account, when the demo admin signs in, and automatically after 30 minutes.
+
+Isolation tests: `cd backend && pip install mongomock && python tests_demo.py`. Maintenance mode has no effect inside the demo sandbox (so the demo cannot lock itself out).

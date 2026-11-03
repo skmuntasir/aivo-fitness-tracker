@@ -11,6 +11,8 @@ import ThemeToggle from '../components/ThemeToggle';
 import { ChallengeList, useChallenges } from '../components/Challenges';
 import { heatLevel } from '../utils/heat';
 import { prefetchFeed } from '../utils/feedCache';
+import { warmData } from '../utils/dataCache';
+import { prefetchRoute } from '../utils/prefetch';
 import { localDateKey, userTimeZone } from '../utils/time';
 
 
@@ -84,7 +86,10 @@ const Home = () => {
   const [userProfile, setUserProfile] = useState(() => {
     try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; }
   });
-  const [liveStats, setLiveStats] = useState({ streak: null, points: null, totalWorkouts: null });
+  const [liveStats, setLiveStats] = useState(() => {   // last known numbers (saved after every fetch) so tiles are filled on first paint
+    try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return { streak: u.streak ?? null, points: u.points ?? null, totalWorkouts: u.totalWorkouts ?? null }; }
+    catch { return { streak: null, points: null, totalWorkouts: null }; }
+  });
   const [frozenDays, setFrozenDays] = useState(() => new Set(readDash()?.frozen || []));
   const [dayTotals, setDayTotals] = useState(() => readDash()?.dayTotals || null);   // { 'YYYY-MM-DD': seconds } — null only on the very first visit
 
@@ -140,6 +145,8 @@ const Home = () => {
   const warmCommunity = useCallback(() => {
     import('./Community').catch(() => {});
     prefetchFeed();
+    warmData();                                  // Progress / Leaderboard / Profile data, ready before you tap
+    ['/progress', '/leaderboard', '/profile', '/friends'].forEach((r) => prefetchRoute(r));   // and their code
   }, []);
 
   useEffect(() => {

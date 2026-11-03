@@ -7,6 +7,8 @@ import { useFeedback } from '../components/Feedback';
 import BackButton from '../components/BackButton';
 import { BadgeGrid } from '../components/Badges';
 import SavedPlans from '../components/SavedPlans';
+import { readData, refreshData, writeData } from '../utils/dataCache';
+import WorkoutNames from '../components/WorkoutNames';
 import ThemeToggle from '../components/ThemeToggle';
 
 
@@ -42,9 +44,9 @@ const cmToFeetInches = (cm) => {
 const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useFeedback();
-  const [userData, setUserData] = useState(null);
-  const [healthMetrics, setHealthMetrics] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState(() => readData('profile')?.data?.user || null);       // last saved copy shows instantly
+  const [healthMetrics, setHealthMetrics] = useState(() => readData('profile')?.data?.metrics || null);
+  const [loading, setLoading] = useState(() => !readData('profile'));
   const [error, setError] = useState(null);
   const [showMetrics, setShowMetrics] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -62,35 +64,30 @@ const Profile = () => {
     return uid ? (localStorage.getItem(`profilePic_${uid}`) || null) : null;
   });
   const [picUploading, setPicUploading] = useState(false);
-  const [badges, setBadges] = useState(null);
+  const [badges, setBadges] = useState(() => readData('badges')?.data || null);
   const fileInputRef = useRef(null);
 
   useEffect(() => { fetchUserData(); }, []);
-  useEffect(() => { API.get('/badges').then((r) => setBadges(r.data)).catch(() => setBadges({ badges: [], earned_count: 0, total: 0 })); }, []);
+  useEffect(() => { refreshData('badges').then(setBadges).catch(() => setBadges((b) => b || { badges: [], earned_count: 0, total: 0 })); }, []);
 
   const fetchUserData = async () => {
     const token = localStorage.getItem('token');
     if (!token) { setError('Authentication token missing. Please log in again.'); setLoading(false); return; }
     try {
-      setLoading(true); setError(null);
-      const profileResponse = await API.get('/auth/profile');
-      if (!profileResponse.data.success) { setError(profileResponse.data.message || 'Failed to load profile.'); setLoading(false); return; }
-      const user = profileResponse.data.user;
+      setError(null);
+      const { user, metrics } = await refreshData('profile');   // shared request; the spinner only shows on the very first visit
       setUserData(user);
+      setHealthMetrics(metrics || null);
       const uid = user._id || user.id || getUserId();
       const picKey = uid ? `profilePic_${uid}` : 'profilePic';
       const pic = user.profile_picture || localStorage.getItem(picKey) || null;
       setProfilePic(pic);
       if (user.profile_picture) localStorage.setItem(picKey, user.profile_picture);
-      try {
-        const metricsResponse = await API.get('/auth/calculate-health-metrics');
-        if (metricsResponse.data.success) setHealthMetrics(metricsResponse.data.metrics);
-      } catch { setHealthMetrics(null); }
     } catch (err) {
       if (err.response && (err.response.status === 401 || err.response.status === 403)) {
         localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.href = '/login'; return;
       }
-      setError(err.response?.data?.message || 'Failed to load user data.');
+      if (!userData) setError(err.userMessage || err.response?.data?.message || 'Failed to load user data.');   // a saved copy stays on screen if the refresh fails
     } finally { setLoading(false); }
   };
 
@@ -124,6 +121,8 @@ const Profile = () => {
       const picKey = uid ? `profilePic_${uid}` : 'profilePic';
       localStorage.setItem(picKey, base64);
       await API.put('/auth/profile', { profile_picture: base64 });
+      const saved = readData('profile')?.data;
+      if (saved?.user) writeData('profile', { ...saved, user: { ...saved.user, profile_picture: base64 } });
     } catch (err) {
       console.error('Picture upload failed', err);
       toast('Failed to upload photo. Please try a smaller image.', 'error');
@@ -413,6 +412,8 @@ const Profile = () => {
             </div>
             {badges === null ? <div className="sk" style={{ height: 96 }} /> : <BadgeGrid badges={badges.badges || []} />}
           </div>
+
+          <WorkoutNames />
 
           <SavedPlans />
 

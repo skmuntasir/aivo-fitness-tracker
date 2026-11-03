@@ -7,24 +7,26 @@ from app.extensions import socketio
 from app.utils import utcnow
 from app.social.service import create_message, is_friend
 from app.runtime import user_status
-from app.demo import set_demo
+from app.demo import set_demo, current_sid, ensure_session
 
 # user_id -> set of socket ids (a user can have several tabs/devices)
 online_users = {}
 sid_to_user = {}
-demo_sids = set()      # socket ids that belong to the demo sandbox
-demo_uids = set()      # demo users currently online (kept apart from the real online count)
+demo_sids = {}         # socket id -> sandbox id, for sockets that belong to a demo sandbox
+demo_uids = {}         # demo user id -> sandbox id, for demo users currently online (kept apart from the real online count)
 
 
 def online_count():
-    """Online members in the CURRENT scope: a demo admin only ever sees demo users, a real admin only real ones."""
-    from app.demo import is_demo
-    return len(online_users.keys() & demo_uids) if is_demo() else len(online_users.keys() - demo_uids)
+    """Online members in the CURRENT scope: a demo admin only sees the demo users of their own sandbox, a real admin only real ones."""
+    sid = current_sid()
+    if sid:
+        return sum(1 for uid in online_users if demo_uids.get(uid) == sid)
+    return len(online_users.keys() - demo_uids.keys())
 
 
 def _scope():
     """Socket events get a fresh request context: re-apply the demo/real data scope of this connection."""
-    set_demo(request.sid in demo_sids)
+    set_demo(demo_sids.get(request.sid))
 
 
 def _get_user_id_from_token(token):
@@ -33,7 +35,9 @@ def _get_user_id_from_token(token):
     try:
         decoded = decode_token(token)
         uid = str(decoded.get('sub') or decoded.get('identity'))
-        set_demo(bool(decoded.get('demo')))   # look the account up in the right (real / demo) data
+        set_demo(decoded.get('ds') if decoded.get('demo') else None)   # look the account up in the right (real / this visitor's demo) data
+        if current_sid():
+            ensure_session(current_sid())   # an expired / cleaned-up sandbox is rebuilt before the account lookup
         st = user_status(uid)
         if not st or not st['is_active'] or (st['tv'] is not None and int(decoded.get('tv', 0) or 0) != st['tv']):
             return None   # suspended, deleted or force-logged-out
@@ -61,13 +65,12 @@ def on_connect(auth):
     if not user_id:
         return False
 
-    from app.demo import is_demo
     first_connection = user_id not in online_users
     online_users.setdefault(user_id, set()).add(request.sid)
     sid_to_user[request.sid] = user_id
-    if is_demo():
-        demo_sids.add(request.sid)
-        demo_uids.add(user_id)
+    if current_sid():
+        demo_sids[request.sid] = current_sid()
+        demo_uids[user_id] = current_sid()
     join_room(user_id)
     if first_connection:
         mongo.db.users.update_one({'_id': ObjectId(user_id)}, {'$set': {'last_active': utcnow()}})
@@ -87,10 +90,10 @@ def on_disconnect(*_args):
     # single disconnect (e.g. React StrictMode remount) marked them offline.
     if not sids:
         online_users.pop(user_id, None)
-        demo_uids.discard(user_id)
+        demo_uids.pop(user_id, None)
         mongo.db.users.update_one({'_id': ObjectId(user_id)}, {'$set': {'last_active': utcnow()}})
         _broadcast_presence(user_id, False)
-    demo_sids.discard(sid)
+    demo_sids.pop(sid, None)
 
 
 @socketio.on('typing')

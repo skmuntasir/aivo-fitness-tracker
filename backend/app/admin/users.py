@@ -10,7 +10,7 @@ from . import admin_bp
 from .guards import (admin_required, staff_required, audit, csv_response, err, oid, page_args, page_meta, rx, ser)
 from ..extensions import mongo
 from ..runtime import invalidate_user
-from ..demo import is_demo
+from ..demo import is_demo, is_demo_email, reserved_account_message, note_deleted
 from ..utils import effective_streak, iso_utc, utcnow, valid_tz
 from datetime import timedelta as _td
 
@@ -81,6 +81,8 @@ def purge_user(user_id):
     db.ai_usage.delete_many({'user_id': uid})
     db.users.update_many({'friends': user_id}, {'$pull': {'friends': user_id}})
     db.users.delete_one({'_id': user_id})
+    if is_demo():
+        note_deleted(user.get('email'))   # a deleted demo account stays deleted for 30 minutes, even across sign-outs
     invalidate_user(user_id)
     audit('user.delete', 'user', user_id, {'email': user.get('email'), 'name': user.get('full_name')})
     return True, None
@@ -228,6 +230,10 @@ def user_create():
     ok, msg = validate_password(password)
     if not ok:
         return err(msg)
+    if not is_demo() and is_demo_email(email):   # reserved for the public demo accounts: a real member could never sign in with it
+        return err('Email already registered', 409)
+    if is_demo() and is_demo_email(email) and not mongo.db.users.find_one({'email': email}):
+        return err(reserved_account_message(), 409)   # a demo account the visitor deleted: it returns at the next reset
     if mongo.db.users.find_one({'email': email}):
         return err('Email already registered', 409)
     doc = {'email': email, 'password': generate_password_hash(password), 'full_name': name,
@@ -258,6 +264,10 @@ def user_update(user_id):
         email = str(data['email']).strip().lower()
         if not validate_email(email):
             return err('Enter a valid email address')
+        if email != user.get('email') and not is_demo() and is_demo_email(email):
+            return err('Email already registered', 409)   # reserved for the public demo accounts
+        if email != user.get('email') and is_demo() and is_demo_email(email) and not mongo.db.users.find_one({'email': email}):
+            return err(reserved_account_message(), 409)
         if email != user.get('email') and mongo.db.users.find_one({'email': email}):
             return err('Email already registered', 409)
         patch['email'] = email

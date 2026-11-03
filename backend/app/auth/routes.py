@@ -7,7 +7,7 @@ from datetime import timedelta, datetime
 from ..extensions import mongo
 from ..utils import iso_utc, utcnow, rate_limit, request_tz, effective_streak
 from ..runtime import get_settings
-from ..demo import ensure_demo_account, ADMIN_ID as DEMO_ADMIN_ID, is_demo, is_demo_email, token_claims, restore_demo_after_admin, restore_if_stale_suspension, DEMO_ADMIN_EMAIL
+from ..demo import deleted_account_message, current_sid, is_demo, is_demo_email, token_claims, restore_demo_after_admin, restore_if_stale_suspension, DEMO_ADMIN_EMAIL
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -223,11 +223,11 @@ def login():
                 'message': 'Password is required'
             }), 400
         
-        # Find user by email (a deleted demo account is quietly brought back first)
-        if is_demo_email(email):
-            ensure_demo_account(email)
         user = mongo.db.users.find_one({'email': email})
         
+        if not user and is_demo() and is_demo_email(email):   # deleted in this visitor's demo: back at the next reset
+            return jsonify({'success': False, 'message': deleted_account_message()}), 401
+
         if not user:
             return jsonify({
                 'success': False,
@@ -292,6 +292,7 @@ def login():
             'message': 'Login successful!',
             'token': access_token,
             **admin_extra,
+            **({'demo_session': current_sid()} if user.get('is_demo') else {}),   # the browser sends it back so its demo accounts share one private sandbox
             'user': {
                 'id': str(user['_id']),
                 'email': user['email'],
@@ -369,8 +370,9 @@ def get_profile():
 @auth_bp.route('/api/auth/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    # Demo admin leaving: undo everything they did (suspensions, deletions, edits) so the demo is fresh again
-    if is_demo() and get_jwt_identity() == str(DEMO_ADMIN_ID):
+    # Anyone leaving a demo account: undo everything done in this visitor's demo (suspensions, deletions, edits)
+    # so it is fresh again. Other visitors' demos are separate sandboxes and are not touched.
+    if is_demo():
         restore_demo_after_admin()
     return jsonify({
         'success': True,
@@ -544,7 +546,10 @@ def delete_account():
     """Permanently delete the authenticated user and all related data."""
     user_id = get_jwt_identity()
     if is_demo():
-        return jsonify({'success': False, 'message': 'Demo accounts cannot be deleted.'}), 403
+        # Full feature parity, but temporary: the demo world is rebuilt from scratch, so the demo account is back
+        # (fresh) the next time anyone signs in to it. Nothing real is touched.
+        restore_demo_after_admin()
+        return jsonify({'success': True, 'message': 'Demo account deleted. It will be back next time you sign in.'})
 
     try:
         uid_obj = ObjectId(user_id)

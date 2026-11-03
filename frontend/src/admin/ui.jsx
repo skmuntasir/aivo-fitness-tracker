@@ -1,5 +1,6 @@
 // Shared admin UI kit: toasts, confirm dialogs (with optional reason / typed confirmation), modal,
 // cards, stat tiles, badges, pagination and formatting helpers.
+import { peek } from './adminCache';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
 import { parseServerDate } from '../utils/time';
@@ -214,18 +215,36 @@ export const PageHeader = ({ title, subtitle, children }) => (
   </div>
 );
 
-// Small data-loading hook: { data, loading, error, reload }
+// Data-loading hook: { data, loading, error, reload }.
+// Stale-while-revalidate: when the same request was answered before (see adminCache.js) the page opens with that answer
+// immediately (loading stays false) and refreshes it quietly in the background; only a brand-new request shows the spinner.
 export function useFetch(fn, deps) {
-  const [state, setState] = useState({ data: null, loading: true, error: '' });
   const fnRef = useRef(fn);
   fnRef.current = fn;
-  const run = useCallback(() => {
-    setState((s) => ({ ...s, loading: true, error: '' }));
+  const alive = useRef(true);
+  const seq = useRef(0);
+  const [state, setState] = useState(() => {
+    const p = peek(fn);
+    return p.hit ? { data: p.value, loading: false, error: '' } : { data: null, loading: true, error: '' };
+  });
+  const run = useCallback((silent) => {
+    const mine = ++seq.current;
+    if (!silent) setState((s) => ({ ...s, loading: true, error: '' }));
     return Promise.resolve(fnRef.current())
-      .then((data) => setState({ data, loading: false, error: '' }))
-      .catch((e) => setState((s) => ({ ...s, loading: false, error: e?.response?.data?.message || e?.message || 'Failed to load' })));
-  }, []); // eslint-disable-line
+      .then((data) => { if (alive.current && mine === seq.current) setState({ data, loading: false, error: '' }); })
+      .catch((e) => {
+        if (!alive.current || mine !== seq.current) return;
+        const error = e?.response?.data?.message || e?.message || 'Failed to load';
+        setState((s) => (silent && s.data != null ? s : { ...s, loading: false, error }));   // a remembered copy stays on screen
+      });
+  }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { run(); }, deps);
-  return useMemo(() => ({ ...state, reload: run }), [state, run]);
+  useEffect(() => {
+    const p = peek(fnRef.current);
+    if (p.hit) { setState((s) => (s.data === p.value ? s : { data: p.value, loading: false, error: '' })); run(true); }
+    else run(false);
+  }, deps);
+  const reload = useCallback(() => run(false), [run]);
+  return useMemo(() => ({ ...state, reload }), [state, reload]);
 }

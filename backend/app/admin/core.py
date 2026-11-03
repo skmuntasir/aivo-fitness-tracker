@@ -15,7 +15,7 @@ from .guards import (admin_public, admin_required, staff_required, audit, err, o
 from ..extensions import mongo
 from ..runtime import DEFAULT_SETTINGS, get_settings, invalidate_user, save_settings
 from ..social.socket import online_count
-from ..demo import ensure_demo_account, ADMIN_ID as DEMO_ADMIN_ID, is_demo, token_claims, restore_demo_after_admin, restore_if_stale_suspension, DEMO_ADMIN_EMAIL
+from ..demo import deleted_account_message, is_demo_email, current_sid, is_demo, token_claims, restore_demo_after_admin, restore_if_stale_suspension, DEMO_ADMIN_EMAIL
 from ..utils import iso_utc, rate_limit, utcnow
 
 _STARTED = time.time()
@@ -30,9 +30,9 @@ def admin_login():
     password = str(data.get('password', ''))
     if not email or not password:
         return err('Email and password are required')
-    if is_demo():
-        ensure_demo_account(email)
     user = mongo.db.users.find_one({'email': email})
+    if not user and is_demo() and is_demo_email(email):
+        return err(deleted_account_message(), 401)
     if not user or not check_password_hash(user.get('password', ''), password):
         return err('Invalid credentials', 401)
     if user.get('is_demo'):
@@ -51,14 +51,15 @@ def admin_login():
     g.admin = user
     mongo.db.users.update_one({'_id': user['_id']}, {'$set': {'last_active': utcnow()}})
     audit('admin.login', 'admin', user['_id'])
-    return jsonify(success=True, token=token, admin=admin_public(user))
+    extra = {'demo_session': current_sid()} if user.get('is_demo') else {}   # the browser sends it back so its demo accounts share one private sandbox
+    return jsonify(success=True, token=token, admin=admin_public(user), **extra)
 
 
 @admin_bp.route('/auth/logout', methods=['POST'])
 @staff_required
 def admin_logout():
-    """Stateless for real admins. For the demo admin it restores the demo world (suspended demo users come back)."""
-    if is_demo() and g.admin['_id'] == DEMO_ADMIN_ID:
+    """Stateless for real admins. For the demo admin it restores that visitor's demo world (suspended / deleted demo users come back)."""
+    if is_demo():
         restore_demo_after_admin()
     return jsonify(success=True)
 
@@ -98,28 +99,53 @@ def overview():
     d1, d7, d14, d30 = (now - timedelta(days=n) for n in (1, 7, 14, 30))
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    secs = list(db.workouts.aggregate([{'$group': {'_id': None, 's': {'$sum': '$duration'}}}]))
+    # One round trip per collection (a $group with conditional sums) instead of ~25 separate counts: on a hosted
+    # database every round trip costs real time, and this endpoint is what makes the dashboard open slowly.
+    def counts(coll, spec, extra=None):
+        """spec: {name: mongo condition on a document, or None for "all"} -> {name: count}"""
+        group = {'_id': None}
+        for name, cond in spec.items():
+            group[name] = {'$sum': 1} if cond is None else {'$sum': {'$cond': [cond, 1, 0]}}
+        group.update(extra or {})
+        try:
+            row = next(iter(db[coll].aggregate([{'$group': group}])), None) or {}
+            return {name: row.get(name, 0) or 0 for name in list(spec) + list(extra or {})}
+        except Exception:   # an engine without these operators: fall back to plain counts (slower, same numbers)
+            return None
+
+    in_range = lambda field, lo, hi=None: ({'$and': [{'$gte': ['$' + field, lo]}, {'$lt': ['$' + field, hi]}]}
+                                           if hi else {'$gte': ['$' + field, lo]})
+    u = counts('users', {
+        'total_users': None, 'admins': {'$eq': ['$is_admin', True]}, 'moderators': {'$eq': ['$is_moderator', True]},
+        'suspended_users': {'$eq': ['$is_active', False]},
+        'new_today': in_range('created_at', day_start), 'new_7d': in_range('created_at', d7),
+        'new_prev_7d': in_range('created_at', d14, d7), 'new_30d': in_range('created_at', d30),
+        'active_24h': in_range('last_active', d1), 'active_7d': in_range('last_active', d7), 'active_30d': in_range('last_active', d30)})
+    if u is None:
+        u = {'total_users': db.users.count_documents({}), 'admins': db.users.count_documents({'is_admin': True}),
+             'moderators': db.users.count_documents({'is_moderator': True}), 'suspended_users': db.users.count_documents({'is_active': False}),
+             'new_today': db.users.count_documents({'created_at': {'$gte': day_start}}), 'new_7d': db.users.count_documents({'created_at': {'$gte': d7}}),
+             'new_prev_7d': db.users.count_documents({'created_at': {'$gte': d14, '$lt': d7}}), 'new_30d': db.users.count_documents({'created_at': {'$gte': d30}}),
+             'active_24h': db.users.count_documents({'last_active': {'$gte': d1}}), 'active_7d': db.users.count_documents({'last_active': {'$gte': d7}}),
+             'active_30d': db.users.count_documents({'last_active': {'$gte': d30}})}
+    w = counts('workouts', {'total_workouts': None, 'workouts_7d': in_range('start_time', d7), 'workouts_prev_7d': in_range('start_time', d14, d7)},
+               extra={'secs': {'$sum': '$duration'}})
+    if w is None:
+        secs = list(db.workouts.aggregate([{'$group': {'_id': None, 's': {'$sum': '$duration'}}}]))
+        w = {'total_workouts': db.workouts.count_documents({}), 'workouts_7d': db.workouts.count_documents({'start_time': {'$gte': d7}}),
+             'workouts_prev_7d': db.workouts.count_documents({'start_time': {'$gte': d14, '$lt': d7}}), 'secs': secs[0]['s'] if secs else 0}
+    p = counts('posts', {'total_posts': None, 'posts_7d': in_range('createdAt', d7), 'hidden_posts': {'$eq': ['$hidden', True]}})
+    if p is None:
+        p = {'total_posts': db.posts.count_documents({}), 'posts_7d': db.posts.count_documents({'createdAt': {'$gte': d7}}),
+             'hidden_posts': db.posts.count_documents({'hidden': True})}
+    m = counts('messages', {'total_messages': None, 'messages_7d': in_range('timestamp', d7)})
+    if m is None:
+        m = {'total_messages': db.messages.count_documents({}), 'messages_7d': db.messages.count_documents({'timestamp': {'$gte': d7}})}
     kpi = {
-        'total_users': db.users.count_documents({}),
-        'admins': db.users.count_documents({'is_admin': True}),
-        'moderators': db.users.count_documents({'is_moderator': True}),
-        'suspended_users': db.users.count_documents({'is_active': False}),
-        'new_today': db.users.count_documents({'created_at': {'$gte': day_start}}),
-        'new_7d': db.users.count_documents({'created_at': {'$gte': d7}}),
-        'new_prev_7d': db.users.count_documents({'created_at': {'$gte': d14, '$lt': d7}}),
-        'new_30d': db.users.count_documents({'created_at': {'$gte': d30}}),
-        'active_24h': db.users.count_documents({'last_active': {'$gte': d1}}),
-        'active_7d': db.users.count_documents({'last_active': {'$gte': d7}}),
-        'active_30d': db.users.count_documents({'last_active': {'$gte': d30}}),
-        'total_workouts': db.workouts.count_documents({}),
-        'workouts_7d': db.workouts.count_documents({'start_time': {'$gte': d7}}),
-        'workouts_prev_7d': db.workouts.count_documents({'start_time': {'$gte': d14, '$lt': d7}}),
-        'training_hours': round((secs[0]['s'] if secs else 0) / 3600, 1),
-        'total_posts': db.posts.count_documents({}),
-        'posts_7d': db.posts.count_documents({'createdAt': {'$gte': d7}}),
-        'hidden_posts': db.posts.count_documents({'hidden': True}),
-        'total_messages': db.messages.count_documents({}),
-        'messages_7d': db.messages.count_documents({'timestamp': {'$gte': d7}}),
+        **u,
+        'total_workouts': w['total_workouts'], 'workouts_7d': w['workouts_7d'], 'workouts_prev_7d': w['workouts_prev_7d'],
+        'training_hours': round((w['secs'] or 0) / 3600, 1),
+        **p, **m,
         'open_reports': db.reports.count_documents({'status': 'open'}),
         'ai_requests_7d': db.ai_usage.count_documents({'ts': {'$gte': d7}}),
         'online_now': online_count(),
@@ -189,15 +215,20 @@ def system_health():
     counts = {}
     for name in ('users', 'workouts', 'posts', 'messages', 'friend_requests', 'reports', 'announcements', 'audit_logs'):
         try:
-            counts[name] = mongo.db[name].count_documents({})
+            counts[name] = mongo.db[name].estimated_document_count()   # collection metadata: instant, no scan
         except Exception:
             counts[name] = None
+    if is_demo():   # never show the demo admin real server details (versions, uptime, key / SMTP status, real latency)
+        info = {'ai_configured': True, 'email_configured': False, 'environment': 'demo', 'python': '3.x',
+                'uptime_seconds': 86400}
+        latency = 1.0
+    else:
+        info = {'ai_configured': bool(os.environ.get('GROQ_API_KEY')), 'email_configured': bool(os.environ.get('SMTP_HOST')),
+                'environment': os.environ.get('FLASK_ENV', 'development') or 'development',
+                'python': sys.version.split()[0], 'uptime_seconds': int(time.time() - _STARTED)}
     return jsonify(success=True, health={
         'database': {'ok': db_ok, 'latency_ms': latency}, 'collections': counts,
-        'online_users': online_count(), 'ai_configured': bool(os.environ.get('GROQ_API_KEY')),
-        'email_configured': bool(os.environ.get('SMTP_HOST')),
-        'environment': os.environ.get('FLASK_ENV', 'development') or 'development',
-        'python': sys.version.split()[0], 'uptime_seconds': int(time.time() - _STARTED),
+        'online_users': online_count(), **info,
         'server_time': iso_utc(utcnow()), 'settings': get_settings()})
 
 

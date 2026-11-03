@@ -4,7 +4,9 @@ import { userTimeZone } from "../utils/time";
 import { useFeedback } from "./Feedback";
 import Icon from "./Icon";
 import { BadgeStrip } from "./Badges";
-import { WORKOUTS, WORKOUT_GROUPS, workoutByName } from "../data/workouts";
+import { WORKOUT_GROUPS } from "../data/workouts";
+import { refreshData } from "../utils/dataCache";
+import { readCachedPrefs, loadPrefs, timerNames, groupOfName, PREFS_EVENT } from "../utils/workoutPrefs";
 import { HEAT_STEPS, heatStep } from "../utils/heat";
 import "./WorkoutTimer.css";
 
@@ -42,7 +44,8 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
   const [starting, setStarting]      = useState(false);
   const [checkin, setCheckin]        = useState(null);     // { deadline } while "Still working out?" is waiting for an answer
   const [newBadges, setNewBadges]    = useState([]);
-  const [group, setGroup]           = useState(() => workoutByName(resumed?.activity)?.group || "gym");
+  const [prefs, setPrefs]           = useState(readCachedPrefs);      // the member's own names + what the timer shows
+  const [group, setGroup]           = useState(() => groupOfName(readCachedPrefs(), resumed?.activity) || "gym");
   const intervalRef  = useRef();
   const startTimeRef = useRef(resumed ? resumed.start : undefined);
   const sidRef       = useRef(resumed ? resumed.sid : null);
@@ -50,6 +53,16 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
   const limitsRef    = useRef(DEFAULT_LIMITS);
   const stoppingRef  = useRef(false);
   const stopRef      = useRef(null);                       // always the latest handleStop (used by the timer tick)
+
+  // Workout names: cached copy shows instantly, the server copy replaces it; edits made in the profile or by the
+  // AI coach arrive through an event while the timer is open.
+  useEffect(() => {
+    let alive = true;
+    loadPrefs().then((p) => { if (alive) setPrefs(p); }).catch(() => {});
+    const onPrefs = (e) => setPrefs(e.detail || readCachedPrefs());
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => { alive = false; window.removeEventListener(PREFS_EVENT, onPrefs); };
+  }, []);
 
   // Resumed after a refresh: ask the server what is really going on (and when the last check-in was).
   useEffect(() => {
@@ -155,6 +168,7 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
       const res = await API.post("/workouts/complete", { session_id: sidRef.current, activity_type: activityType, tz: userTimeZone });
       const data = res.data;
       if (data.success) {
+        ['progress', 'lb:friends', 'lb:global', 'profile', 'badges'].forEach((n) => refreshData(n).catch(() => {}));   // saved copies catch up quietly
         setElapsed(data.duration);                                   // what was actually credited
         setPoints(data.points_earned);
         setStreak(data.streak);
@@ -237,12 +251,13 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
   const mins = String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(2, "0");
   const secs = String(elapsedSeconds % 60).padStart(2, "0");
 
-  const selected = workoutByName(activityType);
+  const selectedGroup = activityType ? groupOfName(prefs, activityType) : null;
+  const selected = activityType ? { name: activityType, group: selectedGroup } : null;
   const step     = heatStep(elapsedSeconds);                 // same colour steps as the streak heatmap
   const accent   = step ? step.bright : "#818cf8";
   const glowing  = isRunning && step?.key === "l5";
   const showPicker = !isRunning && !saved;
-  const list = WORKOUTS.filter((w) => w.group === group);
+  const list = timerNames(prefs, group);                     // alphabetical: built-in + own names the member chose to show
 
   return (
     <div className="wt-panel">
@@ -277,9 +292,9 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
             ))}
           </div>
           <div className="wt-chips" role="group" aria-label="Choose a workout">
-            {list.map((w) => (
-              <button key={w.name} type="button" onClick={() => setActivity(w.name)} aria-pressed={activityType === w.name} className={`wt-chip${activityType === w.name ? " on" : ""}`}>
-                <span className="wt-chip-name">{w.name}</span>
+            {list.map((name) => (
+              <button key={name} type="button" onClick={() => setActivity(name)} aria-pressed={activityType === name} className={`wt-chip${activityType === name ? " on" : ""}`}>
+                <span className="wt-chip-name">{name}</span>
               </button>
             ))}
           </div>
@@ -288,7 +303,7 @@ const WorkoutTimer = forwardRef(function WorkoutTimer({ token, onWorkoutComplete
         <div className="wt-now">
           <span className="wt-now-dot"><Icon name="activity" size={16} /></span>
           <strong>{activityType || "Workout"}</strong>
-          {selected && <em>{selected.group === "gym" ? "Gym" : "Home"}</em>}
+          {selected?.group && <em>{selected.group === "gym" ? "Gym" : "Home"}</em>}
         </div>
       )}
 

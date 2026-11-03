@@ -18,19 +18,39 @@ const upsert = (list, msg) => {
   return next;
 };
 
+// ── saved copies (stale-while-revalidate) ────────────────────────────────────
+// Friends, friend requests and the latest messages of each conversation are kept in localStorage, so after a reload the
+// Friends page, Chat page and chat panel open filled in; the server answer then replaces them quietly. Wiped on logout.
+const STORE = 'chat:v1:';
+const storeKey = (name) => `${STORE}${getMyId() || 'anon'}:${name}`;
+const readStore = (name, fallback) => { try { const v = JSON.parse(localStorage.getItem(storeKey(name))); return v ?? fallback; } catch { return fallback; } };
+const writeStore = (name, value) => {
+  if (!localStorage.getItem('token')) return;
+  try { localStorage.setItem(storeKey(name), JSON.stringify(value)); } catch { /* storage full: optional */ }
+};
+const wipeStore = () => { try { Object.keys(localStorage).filter((k) => k.startsWith(STORE)).forEach((k) => localStorage.removeItem(k)); } catch { /* ignore */ } };
+const MSGS_PER_CHAT = 40;
+const savedMessages = () => {
+  const raw = readStore('messages', {});
+  const out = {};
+  Object.keys(raw).forEach((id) => { if (Array.isArray(raw[id]?.items)) out[id] = { items: raw[id].items, hasMore: !!raw[id].hasMore, loaded: false }; });   // loaded:false => refreshed when opened
+  return out;
+};
+
 const newClientId = () => `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 
 export const ChatProvider = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeConversation, setActiveConversation] = useState(null);
-  const [conversations, setConversations] = useState([]);
-  const [friendsLoaded, setFriendsLoaded] = useState(false);
-  const [requests, setRequests] = useState([]);
-  const [messages, setMessages] = useState({}); // { [friendId]: { items, hasMore, loaded } }
+  const [conversations, setConversations] = useState(() => readStore('friends', []));
+  const [friendsLoaded, setFriendsLoaded] = useState(() => readStore('friends', null) !== null);   // a saved list counts as loaded
+  const [requests, setRequests] = useState(() => readStore('requests', []));
+  const [messages, setMessages] = useState(savedMessages); // { [friendId]: { items, hasMore, loaded } }
   const [typing, setTyping] = useState({});
   const [connected, setConnected] = useState(false);
 
   const socketRef = useRef(null);
+  const warmedChats = useRef(false);     // newest conversations were loaded in the background once
   const pageActiveRef = useRef(false);   // true while the full Chat page is mounted
   const stateRef = useRef({});
   stateRef.current = { isOpen, activeConversation };
@@ -210,6 +230,8 @@ export const ChatProvider = ({ children }) => {
     const onAuth = () => { if (disposed) return; disconnect(); connect(); refreshFriends(); refreshRequests(); };
     const onLogout = () => {
       disconnect();
+      wipeStore();
+      warmedChats.current = false;
       setConversations([]); setMessages({}); setRequests([]); setFriendsLoaded(false);
       setActiveConversation(null); setIsOpen(false);
     };
@@ -226,6 +248,33 @@ export const ChatProvider = ({ children }) => {
       disconnect();
     };
   }, [refreshFriends, refreshRequests, loadMessages]);
+
+  // keep the saved copies up to date (messages are written at most once a second)
+  useEffect(() => { if (friendsLoaded) writeStore('friends', conversations); }, [conversations, friendsLoaded]);
+  useEffect(() => { writeStore('requests', requests); }, [requests]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const out = {};
+      Object.keys(messages).slice(0, 25).forEach((id) => {
+        const items = (messages[id]?.items || []).filter((m) => !m.pending && !m.failed).slice(-MSGS_PER_CHAT);
+        if (items.length) out[id] = { items, hasMore: !!messages[id].hasMore || (messages[id].items || []).length > items.length };
+      });
+      writeStore('messages', out);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [messages]);
+
+  // Once the friends list is in, load the newest few conversations in the background so opening them is instant
+  useEffect(() => {
+    if (!friendsLoaded || warmedChats.current || !conversations.length || !localStorage.getItem('token')) return undefined;
+    warmedChats.current = true;
+    const t = setTimeout(() => {
+      conversations.filter((c) => c.last_message).slice(0, 3).forEach((c) => {
+        if (!stateRef.current.msgs?.[c.id]?.loaded) loadMessages(c.id);
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [friendsLoaded, conversations, loadMessages]);
 
   const totalUnread = useMemo(() => conversations.reduce((n, c) => n + (c.unread_count || 0), 0), [conversations]);
 

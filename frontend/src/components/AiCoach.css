@@ -18,7 +18,8 @@
 .ac-status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.78rem; }
 .ac-live { width: 7px; height: 7px; border-radius: 50%; background: var(--go); flex: none; }
 .ac-expand, .ac-close { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
-.ac-expand:hover, .ac-close:hover { background: var(--raised); color: var(--text); }
+.ac-clear { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }   /* every screen size */
+.ac-clear:hover, .ac-expand:hover, .ac-close:hover { background: var(--raised); color: var(--text); }
 /* desktop: the floating button below the panel is the close control, so the header X would be a duplicate */
 @media (min-width: 900px) { .ac-close { display: none; } .ac-header { padding-right: 12px; } }
 @media (max-width: 899px) { .ac-expand { display: none; } }

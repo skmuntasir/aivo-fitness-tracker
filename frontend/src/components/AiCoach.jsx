@@ -7,6 +7,10 @@ import './AiCoach.css';
 import './Engage.css';
 
 import { formatAIMessage } from './aiFormat';
+import { loadChat, saveChat, clearChat } from '../utils/coachChat';
+import { refreshData } from '../utils/dataCache';
+import { stripCoachTags } from '../utils/workoutPrefs';
+import CoachTimerAdd, { planWorkoutNames } from './CoachTimerAdd';
 
 // A reply is worth saving when it reads like a workout or meal plan.
 const isDemoUser = () => { try { return !!JSON.parse(localStorage.getItem('user') || '{}').is_demo; } catch { return false; } };
@@ -25,19 +29,22 @@ const QUICK_PROMPTS = [
 const AiCoach = () => {
   const [chatOpen, setChatOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
+  // The conversation lives until logout: restored here after a page change or reload (utils/coachChat.js)
+  const restored = useRef(loadChat()).current;
+  const [chatMessages, setChatMessages] = useState(() => restored || [
     { role: 'ai', text: "Hi, I'm your AI coach. Pulling up your fitness data…" },
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [hasUserMessaged, setHasUserMessaged] = useState(false);
+  const [hasUserMessaged, setHasUserMessaged] = useState(() => !!restored?.some((m) => m.role === 'user'));
   const chatEndRef = useRef(null);
-  const greetedRef = useRef(false);
+  const greetedRef = useRef(!!restored && (restored.length > 1 || !/Pulling up your fitness data/.test(restored[0]?.text || '')));
   const abortRef = useRef(null);
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const [streaming, setStreaming] = useState(false);
-  const [savedIdx, setSavedIdx] = useState(() => new Set());
   const [savingIdx, setSavingIdx] = useState(null);
+  const latest = useRef(chatMessages);
+  latest.current = chatMessages;
 
   // Personalised greeting. Loaded the first time the chat is opened (not on page load) so the
   // Home page stays fast; the reply itself is still produced by the backend with your full profile.
@@ -46,9 +53,9 @@ const AiCoach = () => {
     greetedRef.current = true;
     (async () => {
       try {
-        const res = await API.get('/analytics/progress-summary');
-        if (res.data.success) {
-          const s = res.data.summary;
+        const data = await refreshData('progress', { maxAge: 60000 });   // same saved copy the Progress page uses
+        if (data.success) {
+          const s = data.summary;
           const greeting = {
             role: 'ai',
             text: `Hi${isDemoUser() || !s.name ? '' : ' ' + s.name.split(' ')[0]}! I've loaded your fitness data — ${s.streak || 0}-day streak, ${s.weekly_workouts || 0} workouts this week, ${(s.week_calories || 0).toLocaleString()} kcal burned. What do you want to work on?`,
@@ -68,7 +75,12 @@ const AiCoach = () => {
     chatEndRef.current?.scrollIntoView({ behavior: streaming ? 'auto' : 'smooth' });
   }, [chatMessages, isTyping, streaming]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  // keep the conversation saved (not on every streamed word) and save once more when leaving the page
+  useEffect(() => { if (!streaming) saveChat(chatMessages.map((m) => ({ ...m, streaming: undefined }))); }, [chatMessages, streaming]);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    saveChat(latest.current.map((m) => ({ ...m, streaming: undefined })));
+  }, []);
 
   useEffect(() => {
     if (!chatOpen) return;
@@ -165,12 +177,22 @@ const AiCoach = () => {
 
   const stopStreaming = () => abortRef.current?.abort();
 
+  const clearConversation = async () => {
+    if (!(await confirm({ title: 'Clear this chat?', message: 'The conversation is removed and your coach forgets the plans it remembered for you. Plans saved on your profile stay.', confirmLabel: 'Clear chat', tone: 'danger' }))) return;
+    abortRef.current?.abort();
+    clearChat();
+    API.delete('/ai/memory').catch(() => {});
+    setChatMessages([{ role: 'ai', text: 'Fresh start! What do you want to work on?' }]);
+    setHasUserMessaged(false);
+    greetedRef.current = true;
+  };
+
   const savePlan = async (i, text) => {
     if (savingIdx !== null) return;
     setSavingIdx(i);
     try {
-      const r = await API.post('/plans', { content: text });
-      setSavedIdx((prev) => new Set(prev).add(i));
+      const r = await API.post('/plans', { content: stripCoachTags(text) });
+      setChatMessages((prev) => prev.map((m, j) => (j === i ? { ...m, saved: true } : m)));
       toast(r.data.duplicate ? 'This plan is already saved on your profile.' : 'Plan saved to your profile.', 'success');
     } catch (e) {
       toast(e?.response?.data?.message || 'Could not save the plan. Please try again.', 'error');
@@ -188,6 +210,9 @@ const AiCoach = () => {
               <div className="ac-title">Aivo Coach</div>
               <div className="ac-status"><span className="ac-live" /> Online · knows your profile</div>
             </div>
+            {chatMessages.length > 1 && (
+              <button className="ac-clear" onClick={clearConversation} aria-label="Clear chat" title="Clear chat"><Icon name="trash" size={17} /></button>
+            )}
             <button className="ac-expand" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? 'Shrink AI coach' : 'Expand AI coach'} title={expanded ? 'Shrink' : 'Expand'}>
               <Icon name={expanded ? 'minimize' : 'maximize'} size={18} />
             </button>
@@ -198,12 +223,18 @@ const AiCoach = () => {
               <div key={i} className={`ac-msg ac-msg-${msg.role}`}>
                 {msg.role === 'ai' && aiAvatar}
                 <div className="ac-msg-col">
-                  <div className={`ac-msg-bubble${msg.streaming ? ' ac-streaming' : ''}`}>{msg.role === 'ai' ? formatAIMessage(msg.text) : msg.text}{msg.streaming && <span className="ac-caret" aria-hidden="true" />}</div>
-                  {msg.role === 'ai' && i > 0 && !msg.streaming && looksLikePlan(msg.text) && (
-                    <button type="button" className={`ac-save${savedIdx.has(i) ? ' saved' : ''}`} disabled={savedIdx.has(i) || savingIdx === i} onClick={() => savePlan(i, msg.text)}>
-                      <Icon name={savedIdx.has(i) ? 'check' : 'bookmark'} size={14} strokeWidth={savedIdx.has(i) ? 3 : 2} />
-                      {savedIdx.has(i) ? 'Saved to profile' : savingIdx === i ? 'Saving…' : 'Save plan'}
+                  <div className={`ac-msg-bubble${msg.streaming ? ' ac-streaming' : ''}`}>{msg.role === 'ai' ? formatAIMessage(stripCoachTags(msg.text)) : msg.text}{msg.streaming && <span className="ac-caret" aria-hidden="true" />}</div>
+                  {msg.role === 'ai' && i > 0 && !msg.streaming && (looksLikePlan(stripCoachTags(msg.text)) || planWorkoutNames(msg.text).length > 0) && (
+                    <div className="ac-actions">
+                    <button type="button" className={`ac-save${msg.saved ? ' saved' : ''}`} disabled={!!msg.saved || savingIdx === i} onClick={() => savePlan(i, msg.text)}>
+                      <Icon name={msg.saved ? 'check' : 'bookmark'} size={14} strokeWidth={msg.saved ? 3 : 2} />
+                      {msg.saved ? 'Saved to profile' : savingIdx === i ? 'Saving…' : 'Save plan'}
                     </button>
+                    {planWorkoutNames(msg.text).length > 0 && (
+                      <CoachTimerAdd text={msg.text} names={planWorkoutNames(msg.text)} initialDone={!!msg.timerDone}
+                        onDone={() => setChatMessages((prev) => prev.map((m, j) => (j === i ? { ...m, timerDone: true } : m)))} />
+                    )}
+                    </div>
                   )}
                 </div>
               </div>

@@ -94,7 +94,7 @@ def create_app():
         app.register_blueprint(bp)
 
     # 1) pick the real or the demo sandbox data scope, 2) block suspended users / ended sessions / maintenance mode
-    from .demo import detect_scope, seed_demo_if_missing
+    from .demo import detect_scope, seed_demo_if_missing, start_janitor
     from .runtime import enforce_request_guard
     app.before_request(detect_scope)
     app.before_request(enforce_request_guard)
@@ -104,6 +104,7 @@ def create_app():
     with app.app_context():
         ensure_indexes()
         seed_demo_if_missing()
+    start_janitor()   # frees abandoned demo sandboxes in quiet periods (the 30-minute reset itself needs no background work)
 
     @app.after_request
     def _headers(resp):

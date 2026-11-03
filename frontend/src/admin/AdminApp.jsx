@@ -4,21 +4,35 @@ import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import './admin.css';
 import ADMIN, { TOKEN_KEY } from './adminApi';
+import { clearAdminCache, warmAdmin } from './adminCache';
 import { AdminContext } from './adminContext';
 import { ConfirmProvider, Spinner, ToastProvider } from './ui';
 import AdminLayout from './AdminLayout';
 import LoginPage from './pages/LoginPage';
 
-const Dashboard = lazy(() => import('./pages/DashboardPage'));
-const Users = lazy(() => import('./pages/UsersPage'));
-const UserDetail = lazy(() => import('./pages/UserDetailPage'));
-const Workouts = lazy(() => import('./pages/WorkoutsPage'));
-const Posts = lazy(() => import('./pages/ModerationPage'));
-const Leaderboard = lazy(() => import('./pages/LeaderboardPage'));
-const Announcements = lazy(() => import('./pages/AnnouncementsPage'));
-const Audit = lazy(() => import('./pages/AuditPage'));
-const Settings = lazy(() => import('./pages/SettingsPage'));
-const Account = lazy(() => import('./pages/AccountPage'));
+// Page code loaders: used by the routes below and by the warm-up (so every page's code is ready before you click it)
+const pageLoaders = {
+  Dashboard: () => import('./pages/DashboardPage'),
+  Users: () => import('./pages/UsersPage'),
+  UserDetail: () => import('./pages/UserDetailPage'),
+  Workouts: () => import('./pages/WorkoutsPage'),
+  Posts: () => import('./pages/ModerationPage'),
+  Leaderboard: () => import('./pages/LeaderboardPage'),
+  Announcements: () => import('./pages/AnnouncementsPage'),
+  Audit: () => import('./pages/AuditPage'),
+  Settings: () => import('./pages/SettingsPage'),
+  Account: () => import('./pages/AccountPage'),
+};
+const Dashboard = lazy(pageLoaders.Dashboard);
+const Users = lazy(pageLoaders.Users);
+const UserDetail = lazy(pageLoaders.UserDetail);
+const Workouts = lazy(pageLoaders.Workouts);
+const Posts = lazy(pageLoaders.Posts);
+const Leaderboard = lazy(pageLoaders.Leaderboard);
+const Announcements = lazy(pageLoaders.Announcements);
+const Audit = lazy(pageLoaders.Audit);
+const Settings = lazy(pageLoaders.Settings);
+const Account = lazy(pageLoaders.Account);
 
 // Moderators are bounced from admin-only screens (the API enforces this too)
 function AdminOnly({ role, children }) { return role === 'admin' ? children : <Navigate to="/admin" replace />; }
@@ -66,7 +80,17 @@ export default function AdminApp() {
     return () => window.removeEventListener('admin-logout', out);
   }, []);
 
+  // Signed in: fetch every page's code and first screen of data while the console is idle, so clicking is instant
+  useEffect(() => {
+    if (auth.status !== 'in') return undefined;
+    const names = Object.keys(pageLoaders);
+    const timers = names.map((n, i) => setTimeout(() => pageLoaders[n]().catch(() => {}), 200 + i * 120));
+    warmAdmin(ADMIN.get, auth.admin?.role);
+    return () => timers.forEach(clearTimeout);
+  }, [auth.status, auth.admin?.role]);
+
   const login = useCallback((token, admin) => {
+    clearAdminCache();   // never show a previous session's saved copies
     localStorage.setItem(TOKEN_KEY, token);
     setAuth({ status: 'in', admin });
   }, []);
@@ -75,6 +99,7 @@ export default function AdminApp() {
     // Tell the server first: for the demo admin this restores the demo world (suspended demo users come back).
     try { await ADMIN.post('/auth/logout'); } catch { /* sign out locally regardless */ }
     localStorage.removeItem(TOKEN_KEY);
+    clearAdminCache();
     setAuth({ status: 'out', admin: null });
     if (isDemo) {   // the demo admin signed in on the normal login page: send them back there
       localStorage.removeItem('token'); localStorage.removeItem('user');

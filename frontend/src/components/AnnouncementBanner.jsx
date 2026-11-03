@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import API from '../services/api';
+import { readData, refreshData } from '../utils/dataCache';
 import Icon from './Icon';
 
 const COLORS = {
@@ -11,12 +11,12 @@ const readDismissed = () => { try { return JSON.parse(localStorage.getItem(KEY) 
 
 // Announcements written by admins (Admin console → Announcements). Dismissed ones stay hidden on this device.
 export default function AnnouncementBanner() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() => readData('announcements')?.data?.announcements || []);   // saved copy first: no pop-in
   const [dismissed, setDismissed] = useState(readDismissed);
 
   useEffect(() => {
     let alive = true;
-    API.get('/announcements/active').then((r) => alive && setItems(r.data.announcements || [])).catch(() => {});
+    refreshData('announcements').then((d) => alive && setItems(d.announcements || [])).catch(() => {});
     return () => { alive = false; };
   }, []);
 

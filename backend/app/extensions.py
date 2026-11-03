@@ -5,7 +5,8 @@ from flask_socketio import SocketIO
 
 class ScopedMongo(PyMongo):
     """PyMongo whose ``.db`` is the real database for normal requests and the isolated ``demo_`` view of it
-    for demo-sandbox requests (see app/demo.py). Every route keeps using ``mongo.db.<collection>`` unchanged."""
+    for demo-sandbox requests, pinned to that visitor's own sandbox (see app/demo.py). Every route keeps using
+    ``mongo.db.<collection>`` unchanged."""
 
     @property
     def real_db(self):
@@ -16,8 +17,9 @@ class ScopedMongo(PyMongo):
         real = self.__dict__.get('_real_db')
         if real is None:
             return None
-        from .demo import is_demo, DemoDB
-        return DemoDB(real) if is_demo() else real
+        from .demo import current_sid, DemoDB
+        sid = current_sid()
+        return DemoDB(real, sid) if sid else real
 
     @db.setter
     def db(self, value):       # PyMongo.init_app (and the test-suite's fake init) assign `self.db = ...`

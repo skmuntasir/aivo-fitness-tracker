@@ -35,16 +35,3 @@ npm-debug.log*
 .idea/
 .DS_Store
 Thumbs.db
-
-# Python virtual envs / caches
-venv/
-.venv/
-**/venv/
-**/.venv/
-.pytest_cache/
-**/.pytest_cache/
-
-# Other env variants (keep .env.example tracked)
-.env.*
-!.env.example
-!**/.env.example

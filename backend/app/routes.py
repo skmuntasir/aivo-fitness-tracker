@@ -317,3 +317,64 @@ def get_current_user():
         return jsonify(success=False, message="User not found"), 404
     return jsonify(success=True, email=user.get("email", ""), points=user.get("points", 0),
                    streak=effective_streak(user, request_tz()))
+
+
+# ── Personal workout names (Profile -> Workout timer) ───────────────────────
+# Every member can add their own workout names next to the built-in ones (for Gym and for Home) and choose which
+# names the workout timer shows. Stored on the user document, so it is private to that profile and follows the
+# member across devices. `shown[group]` = None means "show everything" (the default).
+WORKOUT_GROUPS = ('gym', 'home')
+MAX_CUSTOM_PER_GROUP = 40
+MAX_SHOWN_PER_GROUP = 120
+MAX_WORKOUT_NAME = 30
+
+
+def clean_workout_name(raw):
+    import re
+    name = ' '.join(re.sub(r'<[^>]*>', '', str(raw or '')).replace('<', ' ').replace('>', ' ').split())
+    name = ''.join(ch for ch in name if ch.isprintable())
+    return name[:MAX_WORKOUT_NAME].strip()
+
+
+def _name_list(raw, limit):
+    out, seen = [], set()
+    for item in (raw if isinstance(raw, list) else []):
+        name = clean_workout_name(item)
+        key = ''.join(ch for ch in name.lower() if ch.isalnum())
+        if name and key not in seen:
+            seen.add(key)
+            out.append(name)
+        if len(out) >= limit:
+            break
+    return sorted(out, key=lambda n: n.lower())
+
+
+def workout_prefs_of(user):
+    """Normalised {'custom': {gym: [...], home: [...]}, 'shown': {gym: [...]|None, home: [...]|None}}."""
+    raw = (user or {}).get('workout_prefs') or {}
+    custom_raw, shown_raw = raw.get('custom') or {}, raw.get('shown') or {}
+    return {
+        'custom': {g: _name_list(custom_raw.get(g), MAX_CUSTOM_PER_GROUP) for g in WORKOUT_GROUPS},
+        'shown': {g: (_name_list(shown_raw.get(g), MAX_SHOWN_PER_GROUP) if isinstance(shown_raw.get(g), list) else None)
+                  for g in WORKOUT_GROUPS},
+    }
+
+
+@users_bp.route('/workout-prefs', methods=['GET'])
+@jwt_required()
+def get_workout_prefs():
+    user = mongo.db.users.find_one({'_id': ObjectId(get_jwt_identity())}, {'workout_prefs': 1})
+    return jsonify(success=True, prefs=workout_prefs_of(user))
+
+
+@users_bp.route('/workout-prefs', methods=['PUT'])
+@jwt_required()
+def save_workout_prefs():
+    data = request.get_json(silent=True) or {}
+    prefs = workout_prefs_of({'workout_prefs': {'custom': data.get('custom'), 'shown': data.get('shown')}})
+    # a name the member shows on the timer must not be an empty list (the client prevents it; the server agrees)
+    for g in WORKOUT_GROUPS:
+        if prefs['shown'][g] is not None and not prefs['shown'][g]:
+            prefs['shown'][g] = None
+    mongo.db.users.update_one({'_id': ObjectId(get_jwt_identity())}, {'$set': {'workout_prefs': prefs}})
+    return jsonify(success=True, prefs=prefs)

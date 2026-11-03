@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { userTimeZone } from '../utils/time';
+import { getDemoSession, rememberDemoSession, DEMO_SESSION_HEADER } from '../utils/demoSession';
 
 export const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
@@ -10,13 +11,15 @@ API.interceptors.request.use(
     const token = localStorage.getItem('token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
     config.headers['X-Timezone'] = userTimeZone; // lets the server group days in the user's timezone
+    const demoSid = getDemoSession();
+    if (demoSid) config.headers[DEMO_SESSION_HEADER] = demoSid; // only used by the server for the public demo accounts
     return config;
   },
   (error) => Promise.reject(error)
 );
 
 API.interceptors.response.use(
-  (response) => response,
+  rememberDemoSession,
   (error) => {
     const { status, data } = error.response || {};
     if (status === 403 && data?.code === 'suspended') {   // suspended by an admin while signed in

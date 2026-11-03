@@ -109,3 +109,25 @@
 .ac-save.saved { color: var(--go); background: var(--go-soft); border-color: transparent; }
 .ac-save:disabled { cursor: default; }
 .ac-send.ac-stop { background: var(--alert); color: #fff; }
+
+/* AI coach: "Add to workout timer" */
+.ac-msg-col .ac-timer { margin-left: 6px; }
+.ac-timer-panel { margin-top: 8px; padding: 12px; border-radius: 14px; background: var(--raised); border: 1px solid var(--line-strong); }
+.ac-timer-head { font-family: var(--font-display); font-weight: 700; font-size: 0.88rem; margin-bottom: 8px; }
+.ac-timer-list { display: grid; gap: 6px; max-height: 220px; overflow-y: auto; scrollbar-width: thin; }
+.ac-timer-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 4px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
+.ac-timer-row.on { border-color: var(--brand-ring); background: var(--brand-soft); }
+.ac-timer-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 4px 6px; text-align: left; font-size: 0.84rem; font-weight: 600; color: var(--text); }
+.ac-timer-tick { flex: none; width: 16px; height: 16px; border-radius: 5px; display: grid; place-items: center; border: 1.5px solid var(--line-strong); color: var(--on-brand); }
+.ac-timer-row.on .ac-timer-tick { background: var(--brand); border-color: var(--brand); }
+.ac-timer-name { overflow-wrap: anywhere; }
+.ac-timer-tag { flex: none; font-style: normal; font-size: 0.72rem; font-weight: 700; color: var(--faint); padding-right: 4px; }
+.ac-timer-seg { flex: none; display: inline-flex; padding: 2px; border-radius: 8px; background: var(--raised); border: 1px solid var(--line); }
+.ac-timer-seg button { padding: 3px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; color: var(--muted); }
+.ac-timer-seg button.on { background: var(--brand-grad); color: var(--on-brand); }
+.ac-timer-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.ac-timer-foot small { color: var(--faint); font-size: 0.74rem; line-height: 1.35; }
+.ac-timer-go { flex: none; padding: 7px 14px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; color: var(--on-brand); background: var(--brand-grad); }
+.ac-timer-go:disabled { opacity: 0.5; cursor: default; }
+.ac-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ac-actions + .ac-timer-panel, .ac-actions .ac-timer-panel { flex-basis: 100%; }

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import API from '../services/api';
 import { formatDateTime } from '../utils/time';
+import { readData, refreshData, writeData } from '../utils/dataCache';
 import { useFeedback } from './Feedback';
 import Icon from './Icon';
 import { formatAIMessage } from './aiFormat';
@@ -11,17 +12,17 @@ const KIND = { workout: 'Workout plan', meal: 'Meal plan', other: 'Plan' };
 // Profile card: every coach plan the member pressed "Save plan" on.
 export default function SavedPlans() {
   const { toast, confirm } = useFeedback();
-  const [plans, setPlans] = useState(null);
+  const [plans, setPlans] = useState(() => readData('plans')?.data?.plans || null);
   const [open, setOpen] = useState(null);
 
   const load = useCallback(async () => {
-    try { const r = await API.get('/plans'); setPlans(r.data.plans || []); } catch { setPlans([]); }
+    try { const d = await refreshData('plans'); setPlans(d.plans || []); } catch { setPlans((p) => p || []); }
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const remove = async (p) => {
     if (!(await confirm({ title: 'Delete this plan?', message: `“${p.title}” will be removed from your profile.`, confirmLabel: 'Delete', tone: 'danger' }))) return;
-    try { await API.delete(`/plans/${p.id}`); setPlans((prev) => prev.filter((x) => x.id !== p.id)); toast('Plan removed.', 'success'); }
+    try { await API.delete(`/plans/${p.id}`); setPlans((prev) => prev.filter((x) => x.id !== p.id)); writeData('plans', { plans: (readData('plans')?.data?.plans || []).filter((x) => x.id !== p.id) }); toast('Plan removed.', 'success'); }
     catch { toast('Could not delete the plan.', 'error'); }
   };
   const copy = async (p) => {
